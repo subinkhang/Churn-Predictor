@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 
+    Định nghĩa một View kế thừa từ Form View của model 'res.partner'.
+    Mục đích là để thêm một nút bấm "Predict Churn" vào giao diện chi tiết của một khách hàng.
+    -->
+    <record id="view_partner_form_inherit_churn" model="ir.ui.view">
+        <field name="name">res.partner.form.inherit.churn</field>
+        <field name="model">res.partner</field>
+        <!-- 'inherit_id' trỏ đến ID của view gốc mà chúng ta muốn kế thừa. 
+             'base.view_partner_form' là ID của Form View khách hàng mặc định. -->
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <!-- 
+            Sử dụng XPath để tìm một vị trí cụ thể trong view gốc và chèn nội dung mới vào.
+            Ở đây, chúng ta tìm đến thẻ div có class 'oe_button_box' (đây là khu vực chứa các
+            smart button ở góc trên bên phải của form).
+            Thuộc tính 'position="inside"' có nghĩa là chúng ta sẽ chèn nút bấm của mình
+            vào bên trong thẻ div này.
+            -->
+            <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
+                <!-- 
+                Đây là định nghĩa nút bấm của chúng ta.
+                - name="action_predict_churn": Tên của phương thức Python trong model 'res.partner' 
+                  sẽ được gọi khi nút này được bấm.
+                - string="Predict Churn": Nhãn văn bản hiển thị trên nút.
+                - type="object": Chỉ định rằng khi bấm nút, Odoo sẽ gọi một phương thức Python (object method).
+                - class="oe_highlight": Làm cho nút có màu xanh để nổi bật.
+                - icon="fa-line-chart": Thêm một icon biểu đồ vào bên cạnh nút (sử dụng Font Awesome).
+                -->
+                <button name="action_predict_churn" 
+                        string="Predict Churn" 
+                        type="object" 
+                        class="oe_highlight" 
+                        icon="fa-line-chart"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

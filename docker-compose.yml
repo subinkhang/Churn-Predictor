@@ -1,0 +1,56 @@
+version: '3.8' # Sử dụng phiên bản docker-compose mới nhất
+
+services:
+  # Service cho cơ sở dữ liệu PostgreSQL (Được quản lý bởi Docker Compose)
+  postgres:
+    image: postgres:13 # Sử dụng image postgres:13
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: postgres123 # Mật khẩu bạn đã đặt
+      PGDATABASE: Churn-Predictor # Database mặc định
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - odoo-network
+
+  # Service cho ứng dụng Odoo
+  odoo:
+    build: . # Xây dựng image từ Dockerfile trong thư mục hiện tại
+    image: churn-predictor
+    depends_on:
+      - postgres # Đảm bảo service postgres khởi động trước odoo
+    ports:
+      - "8069:8069"
+      - "8071:8071"
+    environment:
+      HOST: postgres
+      PORT: 5432
+      USER: odoo
+      PASSWORD: postgres123 # Phải khớp với mật khẩu Postgres
+      PGDATABASE: Churn-Predictor # Tên DB sẽ restore vào
+      # Tùy chọn: ADMIN_PASSWORD giúp quản lý DB qua UI dễ hơn
+      ADMIN_PASSWORD: admin123
+    volumes:
+      - odoo_web_data:/var/lib/odoo
+      # Mount thư mục addon tùy chỉnh
+      - ./custom_addons:/mnt/extra-addons
+      # --> THÊM DÒNG NÀY ĐỂ MOUNT THƯ MỤC CHỨA DUMP VÀO CONTAINER ODOO
+      # ./db_backups là thư mục trên máy local, /mnt/odoo_backups_for_restore là đường dẫn bên trong container Odoo
+      - ./db_backups:/mnt/odoo_backups_for_restore
+      # Tùy chọn: mount file cấu hình odoo.conf
+      # - ./config/odoo.conf:/etc/odoo/odoo.conf
+    command: -- # Chỉ chạy web server
+    networks:
+      - odoo-network
+
+# Định nghĩa các named volumes
+volumes:
+  postgres_data:
+  odoo_web_data:
+
+# Định nghĩa network
+networks:
+  odoo-network:
+    driver: bridge
