@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 
+        Đây là template cho component JS ở trên.
+        Trong đây, chúng ta được phép sử dụng t-on-click một cách hợp lệ.
+    -->
+    <t t-name="ChurnPredictor.ChurnDashboardTemplate">
+        <div class="o_churn_dashboard p-4">
+            <h1>Welcome to the Churn Dashboard</h1>
+            <p>This is a custom page controlled by an Owl Component.</p>
+            <button class="btn btn-primary" t-on-click="onButtonClick">
+                Test Click
+            </button>
+        </div>
+    </t>
+
+</templates>

@@ -1,94 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- 
-    ======================================================================
-    1. Định nghĩa Tree View (dạng danh sách) cho model churn.prediction
-    ======================================================================
-    -->
-    <record id="view_churn_prediction_tree" model="ir.ui.view">
-        <field name="name">churn.prediction.tree</field>
-        <field name="model">churn.prediction</field>
-        <field name="arch" type="xml">
-            <tree string="Churn Predictions">
-                <!-- Các cột sẽ hiển thị trong danh sách -->
-                <field name="prediction_date"/>
-                <field name="customer_name"/>
-                <field name="prediction_result" widget="badge" decoration-danger="prediction_result == 'churn'" decoration-success="prediction_result == 'no_churn'"/>
-                <field name="probability" string="Churn Probability (%)"/>
-            </tree>
-        </field>
+
+    <!-- 1. Định nghĩa Client Action MỚI -->
+    <record id="action_churn_prediction_spa" model="ir.actions.client">
+        <field name="name">Churn Predictions SPA</field>
+        <field name="tag">churn_prediction_spa_action_tag</field>
     </record>
 
-    <!-- 
-    ======================================================================
-    2. Định nghĩa Form View (dạng chi tiết) cho model churn.prediction
-    ======================================================================
-    -->
-    <record id="view_churn_prediction_form" model="ir.ui.view">
-        <field name="name">churn.prediction.form</field>
-        <field name="model">churn.prediction</field>
-        <field name="arch" type="xml">
-            <form string="Churn Prediction">
-                <sheet>
-                    <group>
-                        <!-- Hiển thị các trường trong hai cột -->
-                        <group>
-                            <field name="customer_id"/>
-                            <field name="prediction_date"/>
-                        </group>
-                        <group>
-                            <field name="prediction_result" widget="badge" decoration-danger="prediction_result == 'churn'" decoration-success="prediction_result == 'no_churn'"/>
-                            <field name="probability"/>
-                        </group>
-                    </group>
-                    <!-- Hiển thị trường giải thích SHAP ở một tab riêng -->
-                    <notebook>
-                        <page string="Prediction Explanation">
-                            <!-- Trường shap_html sẽ render mã HTML trực tiếp -->
-                            <field name="shap_html" nolabel="1"/>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-    <!-- 
-    ======================================================================
-    3. Định nghĩa Window Action
-       Action này sẽ được gọi bởi Menu Item để mở các view ở trên.
-    ======================================================================
-    -->
-    <record id="action_churn_prediction" model="ir.actions.act_window">
-        <field name="name">Churn Predictions</field>
-        <field name="res_model">churn.prediction</field>
-        <field name="view_mode">tree,form</field> <!-- Các chế độ xem: danh sách, form -->
-        <field name="help" type="html">
-          <p class="o_view_nocontent_smiling_face">
-            No churn predictions found. Let's create one!
-          </p>
-        </field>
-    </record>
-
-    <!-- 
-    ======================================================================
-    4. Định nghĩa Menu Item
-       Tạo một menu chính và một menu con.
-    ======================================================================
-    -->
-    <!-- Menu chính (Top-level) -->
+    <!-- 2. Định nghĩa Menu Items -->
+    <!-- Menu gốc (đảm bảo nó tồn tại) -->
     <menuitem 
         id="menu_churn_root"
         name="Churn Analysis"
-        sequence="10"
-        groups="base.group_user"/>
+        sequence="10"/>
 
-    <!-- Menu con, khi bấm vào sẽ gọi action_churn_prediction -->
+    <!-- Menu con, gọi đến Client Action mới của chúng ta -->
     <menuitem 
-        id="menu_churn_prediction"
+        id="menu_churn_prediction_list"
         name="Predictions"
         parent="menu_churn_root"
-        action="action_churn_prediction"
+        action="action_churn_prediction_spa"
         sequence="1"/>
 
 </odoo>

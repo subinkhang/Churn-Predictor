@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import base64
 from odoo import models, fields, api
 
 class ChurnPrediction(models.Model):
@@ -53,10 +53,9 @@ class ChurnPrediction(models.Model):
 
     # Trường HTML để lưu và hiển thị biểu đồ giải thích từ SHAP.
     # Chúng ta sẽ lưu trực tiếp mã HTML của biểu đồ vào đây.
-    shap_html = fields.Html(
-        string='Prediction Explanation (SHAP)',
-        readonly=True,
-        help="The SHAP force plot visualization explaining the prediction."
+    shap_html = fields.Binary(
+        string='Prediction Explanation (SHAP Data)',
+        readonly=True
     )
 
     # Thêm một trường để hiển thị tên khách hàng cho tiện lợi
