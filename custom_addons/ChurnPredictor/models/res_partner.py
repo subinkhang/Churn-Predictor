@@ -13,6 +13,8 @@ _logger = logging.getLogger(__name__)
 
 class ResPartner(models.Model):
     _inherit = 'res.partner'
+    
+    prediction_count = fields.Integer(compute='_compute_prediction_count')
 
     def action_predict_churn(self):
         """
@@ -152,40 +154,34 @@ class ResPartner(models.Model):
                 "Đã lưu kết quả dự đoán cho khách hàng %s: Result=%s, Probability=%.2f%%",
                 customer.name, 'churn' if prediction_value == 1 else 'no_churn', probability_value
             )
+            
+        # 1. Tạo một thông báo thành công
+        if records_to_show:
+            message = f"Successfully created {len(records_to_show)} prediction(s)."
+        else:
+            message = "No valid orders found for this customer to make a prediction."
 
-        # --- BƯỚC 6: TRẢ VỀ MỘT ACTION ĐỂ HIỂN THỊ KẾT QUẢ ---
-        # if len(records_to_show) == 1:
-        #     # Nếu chỉ có 1 kết quả, mở thẳng form view
-        #     return {
-        #         'name': _('Churn Prediction Result'),
-        #         'type': 'ir.actions.act_window',
-        #         'res_model': 'churn.prediction',
-        #         'res_id': records_to_show.id,
-        #         'view_mode': 'form',
-        #         'target': 'current',
-        #     }
-        # else:
-        #     # Nếu có nhiều kết quả, mở tree view
-        #     return {
-        #         'name': _('Churn Prediction Results'),
-        #         'type': 'ir.actions.act_window',
-        #         'res_model': 'churn.prediction',
-        #         'view_mode': 'tree,form',
-        #         'domain': [('id', 'in', records_to_show.ids)],
-        #         'target': 'current',
-        #     }
-        if not records_to_show:
-            return # Không làm gì nếu không có kết quả
-
-        # Thay vì trả về một act_window để mở form view,
-        # chúng ta trả về một client action để mở ứng dụng SPA.
+        _logger.info(">>>>> CHUẨN BỊ TRẢ VỀ THÔNG BÁO: %s <<<<<", message)
+        
         return {
-            'name': 'Churn Prediction Result',
             'type': 'ir.actions.client',
-            'tag': 'churn_prediction_spa_action_tag', # Tag của SPA chúng ta đã định nghĩa
-            'target': 'current',
-            'context': {
-                # Gửi ID của bản ghi mới tạo đến cho SPA
-                'active_id': records_to_show[0].id,
-            },
+            'tag': 'display_notification',
+            'params': { 'title': 'Churn Prediction', 'message': message, 'type': 'success', 'sticky': False }
+        }
+
+    def _compute_prediction_count(self):
+        for partner in self:
+            partner.prediction_count = self.env['churn.prediction'].search_count(
+                [('customer_id', '=', partner.id)]
+            )
+
+    # === THÊM PHƯƠNG THỨC ACTION CHO NÚT BẤM ===
+    def action_view_churn_predictions(self):
+        self.ensure_one()
+        return {
+            'name': 'Churn Predictions',
+            'type': 'ir.actions.act_window',
+            'res_model': 'churn.prediction',
+            'view_mode': 'tree,graph,pivot',
+            'domain': [('customer_id', '=', self.id)],
         }

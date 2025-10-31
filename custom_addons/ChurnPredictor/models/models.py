@@ -66,3 +66,73 @@ class ChurnPrediction(models.Model):
         readonly=True,
         store=True # Lưu vào DB để có thể tìm kiếm/nhóm theo tên
     )
+    
+    churn_rate = fields.Float(
+        string="Churn Rate",
+        compute='_compute_churn_rate',
+        store=True, # store=True là bắt buộc để có thể group by và tính toán trên view
+        group_operator='avg', # Chỉ định cách Odoo tổng hợp trường này
+    )    
+    
+    customer_state_id = fields.Many2one(
+        'res.country.state', 
+        string='Customer State',
+        related='customer_id.state_id',
+        store=True, # Bắt buộc phải có store=True để có thể group_by
+        readonly=True,
+    )
+    
+    probability_level = fields.Selection(
+        [
+            ('low', 'Low Risk (0-30%)'),
+            ('medium', 'Medium Risk (30-70%)'),
+            ('high', 'High Risk (70-100%)')
+        ],
+        string="Probability Level",
+        compute='_compute_probability_level',
+        store=True, # Bắt buộc phải có store=True để có thể group_by
+    )
+    
+    is_high_risk = fields.Integer(
+        string="Is High Risk",
+        compute='_compute_is_high_risk',
+        store=True, # Bắt buộc để có thể tính toán trên view
+        default=0,
+    )
+
+    @api.depends('probability_level')
+    def _compute_is_high_risk(self):
+        """
+        Gán giá trị 1 nếu là 'high', ngược lại là 0.
+        Việc tính tổng (sum) của trường này sẽ cho ra số khách hàng nguy cơ cao.
+        """
+        for record in self:
+            if record.probability_level == 'high':
+                record.is_high_risk = 1
+            else:
+                record.is_high_risk = 0
+
+    @api.depends('probability')
+    def _compute_probability_level(self):
+        """
+        Tự động phân loại mức độ rủi ro dựa trên xác suất churn.
+        """
+        for record in self:
+            if record.probability < 30:
+                record.probability_level = 'low'
+            elif record.probability < 70:
+                record.probability_level = 'medium'
+            else:
+                record.probability_level = 'high'
+
+    @api.depends('prediction_result')
+    def _compute_churn_rate(self):
+        """
+        Trường này trả về 100 nếu là churn, 0 nếu không.
+        Khi tính trung bình (avg) trên view, nó sẽ ra đúng tỷ lệ %.
+        """
+        for record in self:
+            if record.prediction_result == 'churn':
+                record.churn_rate = 100.0
+            else:
+                record.churn_rate = 0.0

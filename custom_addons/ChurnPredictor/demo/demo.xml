@@ -1,30 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
-<!--
-          <record id="object0" model="churn-app.churn-app">
-            <field name="name">Object 0</field>
-            <field name="value">0</field>
-          </record>
+    <data noupdate="1">
 
-          <record id="object1" model="churn-app.churn-app">
-            <field name="name">Object 1</field>
-            <field name="value">10</field>
-          </record>
+        <!-- ====================================================== -->
+        <!-- 1. TẠO CÁC KHÁCH HÀNG MẪU VỚI DỮ LIỆU ĐỊA LÝ      -->
+        <!-- ====================================================== -->
+        <record id="demo_partner_techcorp" model="res.partner">
+            <field name="name">TechCorp Solutions (Demo)</field>
+            <field name="state_id" ref="base.state_us_5"/> <!-- California -->
+            <field name="country_id" ref="base.us"/>
+        </record>
+        <record id="demo_partner_retail_king" model="res.partner">
+            <field name="name">Retail King (Demo)</field>
+            <field name="state_id" ref="base.state_us_35"/> <!-- New York -->
+            <field name="country_id" ref="base.us"/>
+        </record>
+        <record id="demo_partner_foodies" model="res.partner">
+            <field name="name">Foodies United (Demo)</field>
+            <field name="state_id" ref="base.state_us_45"/> <!-- Texas -->
+            <field name="country_id" ref="base.us"/>
+        </record>
+        <record id="demo_partner_global" model="res.partner">
+            <field name="name">Global Movers (Demo)</field>
+            <field name="state_id" ref="base.state_us_5"/> <!-- California -->
+            <field name="country_id" ref="base.us"/>
+        </record>
+        <record id="demo_partner_freshfarm" model="res.partner">
+            <field name="name">Fresh Farm Goods (Demo)</field>
+            <field name="state_id" ref="base.state_us_10"/> <!-- Florida -->
+            <field name="country_id" ref="base.us"/>
+        </record>
 
-          <record id="object2" model="churn-app.churn-app">
-            <field name="name">Object 2</field>
-            <field name="value">20</field>
-          </record>
+        <!-- ====================================================== -->
+        <!-- 2. TẠO CÁC KẾT QUẢ DỰ ĐOÁN ĐA DẠNG                  -->
+        <!-- eval="..." dùng để tính toán ngày một cách linh động -->
+        <!-- ====================================================== -->
+        
+        <!-- Kịch bản 1: TechCorp - Khách hàng được "cứu" -->
+        <record id="demo_pred_01" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_techcorp"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=2, days=10)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">churn</field>
+            <field name="probability">88.20</field>
+        </record>
+        <record id="demo_pred_02" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_techcorp"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=15)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">12.50</field>
+        </record>
 
-          <record id="object3" model="churn-app.churn-app">
-            <field name="name">Object 3</field>
-            <field name="value">30</field>
-          </record>
+        <!-- Kịch bản 2: Retail King - Khách hàng nguy cơ cao -->
+        <record id="demo_pred_03" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_retail_king"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=2)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">churn</field>
+            <field name="probability">75.90</field>
+        </record>
+        <record id="demo_pred_04" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_retail_king"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">churn</field>
+            <field name="probability">82.10</field>
+        </record>
+        <record id="demo_pred_05" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_retail_king"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=5)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">churn</field>
+            <field name="probability">91.00</field>
+        </record>
 
-          <record id="object4" model="churn-app.churn-app">
-            <field name="name">Object 4</field>
-            <field name="value">40</field>
-          </record>
--->
+        <!-- Kịch bản 3: Foodies United - Khách hàng an toàn -->
+        <record id="demo_pred_06" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_foodies"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=1, days=20)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">5.30</field>
+        </record>
+        <record id="demo_pred_07" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_foodies"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=18)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">4.80</field>
+        </record>
+        <record id="demo_pred_08" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_foodies"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=3)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">6.10</field>
+        </record>
+
+        <!-- Kịch bản 4: Thêm dữ liệu đa dạng để lấp đầy biểu đồ -->
+        <record id="demo_pred_09" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_global"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=2, days=5)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">33.40</field>
+        </record>
+        <record id="demo_pred_10" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_global"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=1, days=3)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">churn</field>
+            <field name="probability">55.80</field>
+        </record>
+        <record id="demo_pred_11" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_freshfarm"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=25)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">18.90</field>
+        </record>
+        <record id="demo_pred_12" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_techcorp"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=1, days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">25.00</field>
+        </record>
+        <record id="demo_pred_13" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_retail_king"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=33)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">churn</field>
+            <field name="probability">78.00</field>
+        </record>
+        <record id="demo_pred_14" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_global"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=8)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">29.60</field>
+        </record>
+         <record id="demo_pred_15" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_foodies"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=2, days=15)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">no_churn</field>
+            <field name="probability">10.00</field>
+        </record>
+        <record id="demo_pred_16" model="churn.prediction">
+            <field name="customer_id" ref="demo_partner_freshfarm"/>
+            <field name="prediction_date" eval="(DateTime.now() - relativedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="prediction_result">churn</field>
+            <field name="probability">51.20</field>
+        </record>
+
     </data>
 </odoo>

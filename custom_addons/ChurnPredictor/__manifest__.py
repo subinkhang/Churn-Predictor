@@ -28,6 +28,8 @@ Long description of module's purpose
         'views/views.xml',
         'views/templates.xml',
         'views/churn_dashboard_views.xml',
+        'views/churn_kpi_views.xml',
+        'views/churn_progress_views.xml',
     ],
     # only loaded in demonstration mode
     'demo': [
@@ -36,6 +38,7 @@ Long description of module's purpose
     'assets': {
         'web.assets_backend': [   
             'ChurnPredictor/static/src/js/churn_dashboard_action.js',
+            'ChurnPredictor/static/src/xml/churn_dashboard_action.xml',
             'ChurnPredictor/static/src/xml/churn_dashboard_template.xml',
             'ChurnPredictor/static/src/js/churn_prediction_action.js',
             'ChurnPredictor/static/src/xml/churn_prediction_action.xml',

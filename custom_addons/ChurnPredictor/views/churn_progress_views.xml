@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ====================================================== -->
+    <!-- 1. ĐỊNH NGHĨA KANBAN VIEW VỚI PROGRESS BAR           -->
+    <!-- ====================================================== -->
+    <record id="view_churn_prediction_kanban_progress" model="ir.ui.view">
+      <field name="name">churn.prediction.kanban.progress</field>
+      <field name="model">churn.prediction</field>
+      <field name="arch" type="xml">
+          <!-- 
+              - default_group_by: Vẫn nhóm theo Bang.
+              - group_create="false", group_edit="false", group_delete="false": Khóa các chức năng sửa nhóm.
+              - archivable="false": Không cho phép lưu trữ các bản ghi từ view này.
+          -->
+          <kanban default_group_by="customer_state_id" 
+                  group_create="false" group_edit="false" group_delete="false"
+                  archivable="false" class="o_kanban_dashboard" 
+                  create="false" edit="false">
+
+              <!-- 
+                  ĐÂY LÀ PHẦN QUAN TRỌNG NHẤT ĐÃ THAY ĐỔI:
+                  Thêm một <progressbar> vào Kanban.
+                  - field="churn_rate": Dùng trường này để tính toán.
+                  - colors='{"100": "danger", "50": "warning", "0": "success"}':
+                    Thanh tiến độ sẽ có màu xanh nếu tỷ lệ churn là 0%,
+                    màu vàng ở mức 50%, và màu đỏ khi đạt 100%.
+                  - sum_field="probability": Hiển thị tổng xác suất ở góc cột (tùy chọn).
+              -->
+              <progressbar field="churn_rate" 
+                          colors='{"100": "danger", "50": "warning", "0": "success"}' 
+                          avg_field="probability" 
+                          help="Average churn probability for this state"/>
+
+              <!-- Các trường cần thiết cho template -->
+              <field name="customer_name"/>
+              <field name="prediction_date"/>
+              <field name="prediction_result"/>
+              <field name="probability"/>
+              
+              <templates>
+                  <!-- 
+                      Template này bây giờ định nghĩa cho MỘT THẺ (một bản ghi dự đoán),
+                      chứ không phải cho cả nhóm nữa.
+                  -->
+                  <t t-name="kanban-box">
+                      <div t-attf-class="oe_kanban_global_click">
+                          <div class="o_kanban_record_top">
+                              <div class="o_kanban_record_headings">
+                                  <strong class="o_kanban_record_title">
+                                      <!-- Hiển thị tên khách hàng -->
+                                      <span><t t-esc="record.customer_name.value"/></span>
+                                  </strong>
+                              </div>
+                          </div>
+                          <div class="o_kanban_record_body">
+                              <!-- Hiển thị ngày dự đoán -->
+                              <div class="text-muted"><t t-esc="record.prediction_date.value"/></div>
+                          </div>
+                          <div class="o_kanban_record_bottom">
+                              <div class="oe_kanban_bottom_left">
+                                  <!-- Hiển thị kết quả -->
+                                  <span t-if="record.prediction_result.raw_value === 'churn'" class="badge text-bg-danger">Churn</span>
+                                  <span t-if="record.prediction_result.raw_value === 'no_churn'" class="badge text-bg-success">No Churn</span>
+                              </div>
+                              <div class="oe_kanban_bottom_right">
+                                  <!-- Hiển thị xác suất -->
++                                 <span><t t-esc="((record.probability.value || 0) * 1).toFixed(2)"/> %</span>
+                              </div>
+                          </div>
+                      </div>
+                  </t>
+              </templates>
+          </kanban>
+      </field>
+  </record>
+
+    <!-- ====================================================== -->
+    <!-- 2. TẠO ACTION ĐỂ GỌI KANBAN VIEW                   -->
+    <!-- ====================================================== -->
+    <record id="action_churn_progress" model="ir.actions.act_window">
+        <field name="name">Churn Progress Analysis</field>
+        <field name="res_model">churn.prediction</field>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_churn_prediction_kanban_progress"/>
+    </record>
+
+    <!-- ====================================================== -->
+    <!-- 3. TẠO MENU ITEM ĐỂ MỞ TRANG NÀY                    -->
+    <!-- ====================================================== -->
+    <menuitem
+        id="menu_churn_progress"
+        name="Progress Analysis"
+        parent="menu_churn_root"
+        action="action_churn_progress"
+        sequence="3"/>
+
+</odoo>

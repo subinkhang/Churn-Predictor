@@ -1,19 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- 
+        Chúng ta không cần định nghĩa view <dashboard> nữa.
+        Thay vào đó, chúng ta sẽ tạo một Action Window mạnh mẽ.
+    -->
 
-    <!-- 1. Định nghĩa Client Action -->
-    <record id="action_churn_dashboard" model="ir.actions.client">
+    <!-- 1. Định nghĩa Action Window đa chế độ xem -->
+    <record id="action_churn_main_dashboard" model="ir.actions.act_window">
         <field name="name">Churn Dashboard</field>
-        <!-- 'tag' này phải khớp 100% với tên đã đăng ký trong file JS -->
-        <field name="tag">churn_dashboard_action_tag</field>
+        <field name="res_model">churn.prediction</field>
+        <!--
+            Đây là phần quan trọng nhất:
+            - view_mode: Liệt kê tất cả các chế độ xem bạn muốn.
+            - Chế độ xem đầu tiên trong danh sách (graph) sẽ là chế độ mặc định.
+        -->
+        <field name="view_mode">graph,pivot,kanban,tree</field>
+        <field name="context">{'form_view_ref': 'churn_prediction_spa_action_tag'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No data found. Create some predictions to see your dashboard!
+            </p>
+        </field>
     </record>
 
-    <!-- 2. Tạo Menu Item để gọi Action đó -->
-    <menuitem 
-        id="menu_churn_dashboard"
+    <!-- 2. Menu Item để gọi Action này (giữ nguyên) -->
+    <menuitem
+        id="menu_churn_dashboard_main"
         name="Dashboard"
         parent="menu_churn_root"
-        action="action_churn_dashboard"
+        action="action_churn_main_dashboard"
         sequence="0"/>
 
 </odoo>
