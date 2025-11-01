@@ -18,7 +18,7 @@ Long description of module's purpose
     'version': '0.1',
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'sale_management', 'web'],
+    'depends': ['base', 'web', 'sale', 'board'],
 
     # always loaded
     'data': [
@@ -30,18 +30,28 @@ Long description of module's purpose
         'views/churn_dashboard_views.xml',
         'views/churn_kpi_views.xml',
         'views/churn_progress_views.xml',
+        # 'views/churn_CA_view.xml',
+        'views/sales_dashboard_views.xml',
     ],
     # only loaded in demonstration mode
     'demo': [
         'demo/demo.xml',
     ],
     'assets': {
-        'web.assets_backend': [   
-            'ChurnPredictor/static/src/js/churn_dashboard_action.js',
-            'ChurnPredictor/static/src/xml/churn_dashboard_action.xml',
-            'ChurnPredictor/static/src/xml/churn_dashboard_template.xml',
-            'ChurnPredictor/static/src/js/churn_prediction_action.js',
-            'ChurnPredictor/static/src/xml/churn_prediction_action.xml',
+        'web.assets_backend': [
+            # 'ChurnPredictor/static/src/js/churn_dashboard_action.js',
+            # 'ChurnPredictor/static/src/js/churn_prediction_action.js',
+            # 'ChurnPredictor/static/src/xml/churn_dashboard_template.xml',
+            # 'ChurnPredictor/static/src/xml/churn_prediction_action.xml',
+            
+            # 'ChurnPredictor/static/src/js/churn_CA.js',
+            # 'ChurnPredictor/static/src/xml/churn_CA.xml',
+            'ChurnPredictor/static/src/components/kpi_card/kpi_card.js',
+            'ChurnPredictor/static/src/components/kpi_card/kpi_card.xml',
+            'ChurnPredictor/static/src/components/chart_renderer/chart_renderer.js',
+            'ChurnPredictor/static/src/components/chart_renderer/chart_renderer.xml',
+            'ChurnPredictor/static/src/components/sales_dashboard.js',
+            'ChurnPredictor/static/src/components/sales_dashboard.xml',
         ],
     },
     

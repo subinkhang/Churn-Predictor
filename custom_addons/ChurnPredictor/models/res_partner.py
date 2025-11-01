@@ -15,6 +15,16 @@ class ResPartner(models.Model):
     _inherit = 'res.partner'
     
     prediction_count = fields.Integer(compute='_compute_prediction_count')
+    
+    account_type = fields.Selection(
+        [
+            ('buyer', 'Buyer'),
+            ('supplier', 'Supplier')
+        ],
+        string='Account Type',
+        default='buyer',
+        help="Phân loại khách hàng là người mua hay nhà cung cấp."
+    )
 
     def action_predict_churn(self):
         """

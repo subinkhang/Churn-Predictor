@@ -9,31 +9,36 @@
             <field name="name">TechCorp Solutions (Demo)</field>
             <field name="state_id" ref="base.state_us_5"/> <!-- California -->
             <field name="country_id" ref="base.us"/>
+            <field name="account_type">buyer</field> <!-- THÊM MỚI -->
         </record>
         <record id="demo_partner_retail_king" model="res.partner">
             <field name="name">Retail King (Demo)</field>
             <field name="state_id" ref="base.state_us_35"/> <!-- New York -->
             <field name="country_id" ref="base.us"/>
+            <field name="account_type">buyer</field> <!-- THÊM MỚI -->
         </record>
         <record id="demo_partner_foodies" model="res.partner">
             <field name="name">Foodies United (Demo)</field>
             <field name="state_id" ref="base.state_us_45"/> <!-- Texas -->
             <field name="country_id" ref="base.us"/>
+            <field name="account_type">buyer</field> <!-- THÊM MỚI -->
         </record>
         <record id="demo_partner_global" model="res.partner">
             <field name="name">Global Movers (Demo)</field>
             <field name="state_id" ref="base.state_us_5"/> <!-- California -->
             <field name="country_id" ref="base.us"/>
+            <field name="account_type">supplier</field> <!-- THÊM MỚI -->
         </record>
         <record id="demo_partner_freshfarm" model="res.partner">
             <field name="name">Fresh Farm Goods (Demo)</field>
             <field name="state_id" ref="base.state_us_10"/> <!-- Florida -->
             <field name="country_id" ref="base.us"/>
+            <field name="account_type">supplier</field> <!-- THÊM MỚI -->
         </record>
 
         <!-- ====================================================== -->
         <!-- 2. TẠO CÁC KẾT QUẢ DỰ ĐOÁN ĐA DẠNG                  -->
-        <!-- eval="..." dùng để tính toán ngày một cách linh động -->
+        <!-- (Phần này không có gì thay đổi)                     -->
         <!-- ====================================================== -->
         
         <!-- Kịch bản 1: TechCorp - Khách hàng được "cứu" -->
@@ -50,7 +55,8 @@
             <field name="probability">12.50</field>
         </record>
 
-        <!-- Kịch bản 2: Retail King - Khách hàng nguy cơ cao -->
+        <!-- (Giữ nguyên toàn bộ các record churn.prediction còn lại) -->
+        <!-- ... -->
         <record id="demo_pred_03" model="churn.prediction">
             <field name="customer_id" ref="demo_partner_retail_king"/>
             <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=2)).strftime('%Y-%m-%d %H:%M:%S')"/>
@@ -69,8 +75,6 @@
             <field name="prediction_result">churn</field>
             <field name="probability">91.00</field>
         </record>
-
-        <!-- Kịch bản 3: Foodies United - Khách hàng an toàn -->
         <record id="demo_pred_06" model="churn.prediction">
             <field name="customer_id" ref="demo_partner_foodies"/>
             <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=1, days=20)).strftime('%Y-%m-%d %H:%M:%S')"/>
@@ -89,8 +93,6 @@
             <field name="prediction_result">no_churn</field>
             <field name="probability">6.10</field>
         </record>
-
-        <!-- Kịch bản 4: Thêm dữ liệu đa dạng để lấp đầy biểu đồ -->
         <record id="demo_pred_09" model="churn.prediction">
             <field name="customer_id" ref="demo_partner_global"/>
             <field name="prediction_date" eval="(DateTime.now() - relativedelta(months=2, days=5)).strftime('%Y-%m-%d %H:%M:%S')"/>

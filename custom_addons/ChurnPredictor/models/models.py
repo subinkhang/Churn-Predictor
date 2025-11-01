@@ -136,3 +136,46 @@ class ChurnPrediction(models.Model):
                 record.churn_rate = 100.0
             else:
                 record.churn_rate = 0.0
+                
+    @api.model
+    def get_dashboard_kpis(self, domain=None):
+        """
+        Hàm này được gọi từ JavaScript để lấy dữ liệu cho các ô KPI.
+        Nó đã được nâng cấp để chấp nhận một `domain` để lọc dữ liệu.
+        """
+        # Nếu không có domain được truyền vào, sử dụng một domain trống (lấy tất cả)
+        if domain is None:
+            domain = []
+            
+        # Đọc dữ liệu từ các bản ghi dự đoán đã được lọc
+        predictions = self.search_read(
+            domain,
+            ['is_high_risk', 'probability', 'churn_rate']
+        )
+        
+        # Lấy tổng số bản ghi dự đoán (trước khi lọc) để tính tỷ lệ %
+        total_predictions_overall = self.search_count([])
+
+        total_predictions_in_group = len(predictions)
+        high_risk_customers = sum(p['is_high_risk'] for p in predictions)
+        
+        # Tính toán để tránh lỗi chia cho 0
+        average_churn_probability = 0
+        overall_churn_rate = 0
+        high_risk_percentage = 0
+
+        if total_predictions_in_group > 0:
+            average_churn_probability = sum(p['probability'] for p in predictions) / total_predictions_in_group
+            overall_churn_rate = sum(p['churn_rate'] for p in predictions) / total_predictions_in_group
+        
+        if total_predictions_overall > 0:
+            # Tỷ lệ % khách hàng rủi ro cao của nhóm hiện tại so với TỔNG SỐ
+            high_risk_percentage = (high_risk_customers / total_predictions_overall) * 100
+
+        return {
+            'total_predictions': total_predictions_in_group,
+            'high_risk_customers': high_risk_customers,
+            'average_churn_probability': round(average_churn_probability, 2),
+            'overall_churn_rate': round(overall_churn_rate, 2),
+            'high_risk_percentage': round(high_risk_percentage, 1), # Dữ liệu cho progress bar
+        }

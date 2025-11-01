@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 1. Client Action: Đã được cập nhật ID cho nhất quán -->
+    <record id="churn_dashboard_client_action_ca" model="ir.actions.client"> <!-- SỬA: Thêm _ca vào ID -->
+        <field name="name">Churn Dashboard</field>
+        <!-- Tag này phải khớp 100% với file JavaScript -->
+        <field name="tag">churn_predictor.dashboard_ca</field>
+    </record>
+
+    <!-- 2. Menu chính của Module (Giữ nguyên) -->
+    <menuitem
+        id="churn_predictor_menu_root"
+        name="Churn Predictor"
+        web_icon="ChurnPredictor,static/description/icon.png"
+        sequence="10"/>
+
+    <!-- 3. Menu con để mở Dashboard (Đã được cập nhật ID và action) -->
+    <menuitem
+        id="churn_dashboard_menu_ca"
+        name="Dashboard"
+        parent="churn_predictor_menu_root"
+        action="churn_dashboard_client_action_ca"
+        sequence="1"/>
+</odoo>
