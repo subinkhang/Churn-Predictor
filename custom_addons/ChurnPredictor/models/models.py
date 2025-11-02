@@ -99,6 +99,12 @@ class ChurnPrediction(models.Model):
         store=True, # Bắt buộc để có thể tính toán trên view
         default=0,
     )
+    
+    product_count = fields.Integer(
+        string="Number of Products Purchased",
+        default=1, # Hoặc một giá trị mặc định hợp lý
+        help="The number of distinct products the customer has purchased."
+    )
 
     @api.depends('probability_level')
     def _compute_is_high_risk(self):

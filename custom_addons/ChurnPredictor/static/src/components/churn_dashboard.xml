@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <t t-name="owl.OwlSalesDashboard" owl="1">
+    <t t-name="owl.ChurnDashboard" owl="1">
         <div class="vh-100 overflow-auto bg-muted">
             <div class="row m-3">
                 <div class="col-lg-7">
@@ -8,10 +8,10 @@
                         <div class="col m-0 p-0">
                             <div class="shadow-sm border m-2 p-4 bg-white">
                                 <div class="d-flex align-items-center justify-content-between">
-                                    <h1 class="text-primary fw-bold">Custom Sales Dashboard</h1>
+                                    <h1 class="text-primary fw-bold">Churn Prediction Dashboard</h1>
                                     <div>
                                         <select class="form-select" t-model="state.period" t-on-change="onChangePeriod">
-                                            <option value="0">Select Period</option>
+                                            <option value="0">All Time</option>
                                             <option value="7">Last 7 Days</option>
                                             <option value="30">Last 30 Days</option>
                                             <option value="90">Last 90 Days</option>
@@ -22,13 +22,48 @@
                             </div>
                         </div>
                     </div>
+                    <!-- === BẮT ĐẦU PHẦN CẬP NHẬT KPI CARDS === -->
                     <div class="row">
-                        <KpiCard onClick.bind="viewQuotations" name="'Quotations'" value="state.quotations.value" percentage="state.quotations.percentage"/>
-                        <KpiCard onClick.bind="viewOrders" name="'Orders'" value="state.orders.value" percentage="state.orders.percentage"/>
-                        <KpiCard onClick.bind="viewRevenues" name="'Revenues'" value="state.orders.revenue" percentage="state.orders.revenue_percentage"/>
-                        <KpiCard onClick.bind="viewRevenues" name="'Average Order'" value="state.orders.average" percentage="state.orders.average_percentage"/>
+                        <KpiCard onClick.bind="viewHighRiskCustomers" name="'High-Risk Customers'" value="state.highRiskCustomers.value" percentage="state.highRiskCustomers.percentage"/>
+                        <KpiCard onClick.bind="viewPredictedChurn" name="'Predicted Churn'" value="state.predictedChurn.value" percentage="state.predictedChurn.percentage"/>
+                        <KpiCard onClick.bind="viewAvgChurnProbability" name="'Avg. Churn Probability'" value="state.avgChurnProbability.value" percentage="state.avgChurnProbability.percentage"/>
+                        <KpiCard onClick.bind="viewTotalPredictions" name="'Total Predictions'" value="state.totalPredictions.value" percentage="state.totalPredictions.percentage"/>
                     </div>
+                    <!-- === KẾT THÚC PHẦN CẬP NHẬT KPI CARDS === -->
                     <div class="row">
+                        <!-- Biểu đồ 1: Gauge Chart -->
+                        <div class="col-lg-6 m-0 p-0">
+                            <div class="shadow-sm border m-2 p-4 bg-white">
+                                <!-- Sử dụng lại cấu trúc header ổn định -->
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h3 class="text-primary fw-bold">Average Churn Probability</h3>
+                                    <!-- Bạn có thể thêm action cho nút này sau -->
+                                    <div class="px-3 py-1 bg-primary cursor-pointer">
+                                        <span class="fa fa-arrow-right text-white"/>
+                                    </div>
+                                </div>
+                                <!-- Đặt ChartRenderer bên dưới header -->
+                                <ChartRenderer type="'gauge'" config="{ 'data': [state.avgChurnProbability.rawValue] }"/>
+                            </div>
+                        </div>
+
+                        <!-- Biểu đồ 2: Custom Doughnut Chart -->
+                        <div class="col-lg-6 m-0 p-0">
+                            <div class="shadow-sm border m-2 p-4 bg-white">
+                                <!-- Sử dụng lại cấu trúc header ổn định -->
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h3 class="text-primary fw-bold">Risk Score by Product Count</h3>
+                                    <!-- Bạn có thể thêm action cho nút này sau -->
+                                    <div class="px-3 py-1 bg-primary cursor-pointer">
+                                        <span class="fa fa-arrow-right text-white"/>
+                                    </div>
+                                </div>
+                                <!-- Đặt ChartRenderer bên dưới header -->
+                                <ChartRenderer type="'customDoughnut'" config="state.churnByProductCount"/>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- <div class="row">
                         <div class="col-lg-6 m-0 p-0">
                             <div class="shadow-sm border m-2 p-4 bg-white">
                                 <div class="d-flex align-items-center justify-content-between">
@@ -51,19 +86,20 @@
                                 <ChartRenderer type="'pie'" title="'Top Sales People Report'"/>
                             </div>
                         </div>
-                    </div>
+                    </div> -->
                 </div>
                 <div class="col-lg-5">
                     <div class="row">
                         <div class="col m-0 p-0">
                             <div class="shadow-sm border m-2 p-4 bg-white">
                                 <div class="d-flex align-items-center justify-content-between">
-                                    <h3 class="text-primary fw-bold">Monthly Sales</h3>
+                                    <h3 class="text-primary fw-bold">Churn Analysis by State (Top 5)</h3>
                                     <div class="px-3 py-1 bg-primary cursor-pointer">
                                         <span class="fa fa-arrow-right text-white"/>
                                     </div>
                                 </div>
-                                <ChartRenderer type="'bar'" title="'Monthly Sales Report'"/>
+                                <!-- Gọi ChartRenderer với loại 'bar' và dữ liệu churnByState mới -->
+                                <ChartRenderer type="'bar'" title="'Prediction Counts'" config="state.churnByState"/>
                             </div>
                         </div>
                     </div>
@@ -71,12 +107,13 @@
                         <div class="col m-0 p-0">
                             <div class="shadow-sm border m-2 p-4 bg-white">
                                 <div class="d-flex align-items-center justify-content-between">
-                                    <h3 class="text-primary fw-bold">Partner Orders</h3>
+                                    <h3 class="text-primary fw-bold">Prediction Trends (Weekly)</h3>
                                     <div class="px-3 py-1 bg-primary cursor-pointer">
                                         <span class="fa fa-arrow-right text-white"/>
                                     </div>
                                 </div>
-                                <ChartRenderer type="'line'" title="'Partner Orders Report'"/>
+                                <!-- Gọi ChartRenderer với loại 'line' và dữ liệu predictionTrend mới -->
+                                <ChartRenderer type="'line'" title="'Churn vs. No Churn Trend'" config="state.predictionTrend"/>
                             </div>
                         </div>
                     </div>

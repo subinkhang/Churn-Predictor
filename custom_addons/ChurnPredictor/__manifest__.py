@@ -27,11 +27,11 @@ Long description of module's purpose
         'views/res_partner_views.xml',
         'views/views.xml',
         'views/templates.xml',
-        'views/churn_dashboard_views.xml',
+        'views/churn_dashboard_views_1.xml',
+        'views/churn_dashboard_views_2.xml',
         'views/churn_kpi_views.xml',
         'views/churn_progress_views.xml',
         # 'views/churn_CA_view.xml',
-        'views/sales_dashboard_views.xml',
     ],
     # only loaded in demonstration mode
     'demo': [
@@ -50,8 +50,8 @@ Long description of module's purpose
             'ChurnPredictor/static/src/components/kpi_card/kpi_card.xml',
             'ChurnPredictor/static/src/components/chart_renderer/chart_renderer.js',
             'ChurnPredictor/static/src/components/chart_renderer/chart_renderer.xml',
-            'ChurnPredictor/static/src/components/sales_dashboard.js',
-            'ChurnPredictor/static/src/components/sales_dashboard.xml',
+            'ChurnPredictor/static/src/components/churn_dashboard.js',
+            'ChurnPredictor/static/src/components/churn_dashboard.xml',
         ],
     },
     
