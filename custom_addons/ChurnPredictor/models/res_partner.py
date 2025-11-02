@@ -195,3 +195,19 @@ class ResPartner(models.Model):
             'view_mode': 'tree,graph,pivot',
             'domain': [('customer_id', '=', self.id)],
         }
+        
+    def action_view_customer_dashboard(self):
+        """
+        Trả về một client action để mở dashboard OWL chi tiết cho khách hàng này.
+        """
+        self.ensure_one()
+        # Trả về một dictionary định nghĩa client action
+        return {
+            'type': 'ir.actions.client',
+            # 'tag' phải khớp với tag đã đăng ký trong file customer_dashboard.js
+            'tag': 'churn_predictor.customer_dashboard',
+            'name': _('Churn Detail: %s', self.name),
+            # 'context' được dùng để truyền ID của khách hàng hiện tại
+            # vào component OWL thông qua props.action.context
+            'context': {'active_id': self.id},
+        }

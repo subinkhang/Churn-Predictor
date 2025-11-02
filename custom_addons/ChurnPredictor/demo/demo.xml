@@ -160,6 +160,39 @@
             <field name="probability">6.10</field>
             <field name="product_count">2</field>
         </record>
+<!-- Đơn hàng cho MotorCity Motors (Demo) -->
+        <record id="sale_order_motorcity_01" model="sale.order">
+            <field name="partner_id" ref="demo_partner_motorcity"/>
+            <field name="partner_invoice_id" ref="demo_partner_motorcity"/>
+            <field name="partner_shipping_id" ref="demo_partner_motorcity"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(months=3)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <!-- Trạng thái 'sale' là đã được xác nhận -->
+            <field name="state">sale</field>
+        </record>
 
+        <!-- Đơn hàng cho TechCorp Solutions (Demo) -->
+        <record id="sale_order_techcorp_01" model="sale.order">
+            <field name="partner_id" ref="demo_partner_techcorp"/>
+            <field name="partner_invoice_id" ref="demo_partner_techcorp"/>
+            <field name="partner_shipping_id" ref="demo_partner_techcorp"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(months=2, days=5)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+        </record>
+        <record id="sale_order_techcorp_02" model="sale.order">
+            <field name="partner_id" ref="demo_partner_techcorp"/>
+            <field name="partner_invoice_id" ref="demo_partner_techcorp"/>
+            <field name="partner_shipping_id" ref="demo_partner_techcorp"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(months=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+        </record>
+        
+        <!-- Đơn hàng cho Fresh Farm Goods (Demo) -->
+         <record id="sale_order_freshfarm_01" model="sale.order">
+            <field name="partner_id" ref="demo_partner_freshfarm"/>
+            <field name="partner_invoice_id" ref="demo_partner_freshfarm"/>
+            <field name="partner_shipping_id" ref="demo_partner_freshfarm"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(days=40)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+        </record>
     </data>
 </odoo>

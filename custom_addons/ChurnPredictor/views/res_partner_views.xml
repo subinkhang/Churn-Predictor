@@ -6,6 +6,13 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
+                <!-- === THÊM NÚT MỚI ĐỂ MỞ DASHBOARD CHI TIẾT === -->
+                <button class="oe_stat_button" name="action_view_customer_dashboard" type="object" icon="fa-tachometer">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Churn</span>
+                        <span class="o_stat_text">Dashboard</span>
+                    </div>
+                </button>
                 <button class="oe_stat_button" name="action_view_churn_predictions" type="object" icon="fa-line-chart">
                     <field name="prediction_count" widget="statinfo" string="Predictions"/>
                 </button>

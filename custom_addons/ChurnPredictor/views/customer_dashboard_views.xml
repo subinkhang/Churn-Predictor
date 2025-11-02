@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <data>
+        <!-- 1. Định nghĩa Client Action cho trang dashboard chi tiết -->
+        <record id="action_owl_customer_dashboard" model="ir.actions.client">
+            <field name="name">Customer Churn Detail</field>
+            <field name="tag">churn_predictor.customer_dashboard</field>
+            <!-- 
+                'target': 'main' sẽ mở action trong cửa sổ chính.
+                'target': 'new' sẽ mở trong một cửa sổ popup (dialog).
+                Chúng ta sẽ để Odoo quyết định mặc định.
+            -->
+        </record>
+    </data>
+</odoo>

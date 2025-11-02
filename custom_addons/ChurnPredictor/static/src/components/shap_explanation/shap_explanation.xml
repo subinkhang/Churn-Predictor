@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="churn_predictor.ShapExplanation" owl="1">
+        <div class="shadow-sm border bg-white p-4 h-100">
+            <h5 class="text-primary fw-bold">Prediction Explanation (SHAP Analysis)</h5>
+            <hr/>
+            <!-- Kiểm tra xem có nội dung HTML không -->
+            <t t-if="props.htmlContent">
+                <!-- 
+                    t-raw sẽ render chuỗi HTML. 
+                    Lưu ý: Chỉ sử dụng t-raw với dữ liệu bạn tin tưởng (như dữ liệu do SHAP tạo ra),
+                    không bao giờ dùng với dữ liệu do người dùng nhập vào để tránh rủi ro bảo mật.
+                -->
+                <div class="shap-container overflow-auto" t-raw="props.htmlContent"/>
+            </t>
+            <t t-else="">
+                <div class="text-center text-muted p-5">
+                    <i class="fa fa-bar-chart fa-2x mb-2"/>
+                    <div>SHAP explanation is not available for this prediction.</div>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

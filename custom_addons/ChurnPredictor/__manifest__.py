@@ -24,14 +24,14 @@ Long description of module's purpose
     'data': [
         'security/ir.model.access.csv',
         'views/churn_prediction_views.xml',
-        'views/res_partner_views.xml',
         'views/views.xml',
         'views/templates.xml',
         'views/churn_dashboard_views_1.xml',
         'views/churn_dashboard_views_2.xml',
         'views/churn_kpi_views.xml',
         'views/churn_progress_views.xml',
-        # 'views/churn_CA_view.xml',
+        'views/customer_dashboard_views.xml',
+        'views/res_partner_views.xml',
     ],
     # only loaded in demonstration mode
     'demo': [
@@ -39,19 +39,18 @@ Long description of module's purpose
     ],
     'assets': {
         'web.assets_backend': [
-            # 'ChurnPredictor/static/src/js/churn_dashboard_action.js',
-            # 'ChurnPredictor/static/src/js/churn_prediction_action.js',
-            # 'ChurnPredictor/static/src/xml/churn_dashboard_template.xml',
-            # 'ChurnPredictor/static/src/xml/churn_prediction_action.xml',
-            
-            # 'ChurnPredictor/static/src/js/churn_CA.js',
-            # 'ChurnPredictor/static/src/xml/churn_CA.xml',
             'ChurnPredictor/static/src/components/kpi_card/kpi_card.js',
             'ChurnPredictor/static/src/components/kpi_card/kpi_card.xml',
             'ChurnPredictor/static/src/components/chart_renderer/chart_renderer.js',
             'ChurnPredictor/static/src/components/chart_renderer/chart_renderer.xml',
             'ChurnPredictor/static/src/components/churn_dashboard.js',
             'ChurnPredictor/static/src/components/churn_dashboard.xml',
+            'ChurnPredictor/static/src/components/customer_dashboard/customer_dashboard.js',
+            'ChurnPredictor/static/src/components/customer_dashboard/customer_dashboard.xml',
+            'ChurnPredictor/static/src/components/profile_card/profile_card.js',
+            'ChurnPredictor/static/src/components/profile_card/profile_card.xml',
+            'ChurnPredictor/static/src/components/shap_explanation/shap_explanation.js',
+            'ChurnPredictor/static/src/components/shap_explanation/shap_explanation.xml',
         ],
     },
     

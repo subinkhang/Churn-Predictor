@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="churn_predictor.CustomerDashboard" owl="1">
+        <div class="vh-100 overflow-auto bg-muted p-3">
+            <h1 class="text-primary fw-bold mb-3">Churn Detail Dashboard for <t t-esc="state.customerData.name"/></h1>
+            <div class="row">
+                <!-- Các cột tiếp theo cho các thành phần khác -->
+                <div class="col-lg-4">
+                    <ProfileCard customer="state.customerData" lifetimeValue="state.lifetimeValue" latestPrediction="state.latestPrediction"/>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <div class="shadow-sm border bg-white p-4 text-center">
+                        <!-- Chỉ hiển thị nút bấm nếu có dữ liệu SHAP -->
+                        <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
+                            <h5 class="mb-3">Prediction Explanation Analysis</h5>
+                            <p class="text-muted">Click the button below to open a detailed SHAP force plot that explains which features contributed to this prediction.</p>
+                            <button class="btn btn-primary" t-on-click="onViewShapClick">
+                                <i class="fa fa-external-link me-2"/>
+                                View SHAP Explanation in New Tab
+                            </button>
+                        </t>
+                        <!-- Hiển thị thông báo nếu không có dữ liệu -->
+                        <t t-else="">
+                            <div class="text-muted p-3">
+                                <i class="fa fa-info-circle me-2"/>
+                                <span>SHAP explanation is not available for this prediction.</span>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </div>
+            <!-- Các hàng tiếp theo cho các biểu đồ lớn -->
+        </div>
+    </t>
+</templates>

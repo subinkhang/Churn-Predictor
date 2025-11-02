@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="churn_predictor.ProfileCard" owl="1">
+        <div class="shadow-sm border bg-white h-100">
+            <div class="p-4">
+                <!-- Phần thông tin cơ bản (giữ nguyên) -->
+                <div class="d-flex align-items-center mb-3">
+                    <img t-if="props.customer.image_128" t-att-src="'data:image/png;base64,' + props.customer.image_128" class="rounded-circle me-3" style="width: 80px; height: 80px; object-fit: cover;"/>
+                    <div t-else="" class="rounded-circle me-3 bg-light d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                        <span class="fa fa-user fa-3x text-muted"/>
+                    </div>
+                    <div>
+                        <h4 class="m-0 fw-bold" t-esc="props.customer.name"/>
+                        <p class="m-0 text-muted">Customer Profile &amp; Latest Prediction</p>
+                    </div>
+                </div>
+                <hr/>
+                
+                <!-- Phần thông tin liên lạc (giữ nguyên) -->
+                <div class="row mb-3">
+                    <div class="col-12 mb-2"><i class="fa fa-envelope fa-fw me-2 text-primary"/> <span t-esc="props.customer.email || 'N/A'"/></div>
+                    <div class="col-12"><i class="fa fa-map-marker fa-fw me-2 text-primary"/> <span> <t t-esc="props.customer.street || ''"/> <t t-if="props.customer.city">, <t t-esc="props.customer.city"/></t> <t t-if="props.customer.state_id">, <t t-esc="props.customer.state_id[1]"/></t> <t t-if="props.customer.country_id">, <t t-esc="props.customer.country_id[1]"/></t> </span></div>
+                </div>
+                
+                <!-- === BẮT ĐẦU PHẦN THÔNG TIN DỰ ĐOÁN ĐẦY ĐỦ === -->
+                <t t-if="props.latestPrediction">
+                    <hr/>
+                    <div class="row">
+                        <!-- Cột bên trái -->
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <div class="text-muted small fw-bold">PREDICTION RESULT</div>
+                                <div>
+                                    <span t-if="props.latestPrediction.prediction_result === 'churn'" class="badge bg-danger">
+                                        <i class="fa fa-exclamation-circle me-1"/>Churn
+                                    </span>
+                                    <span t-else="" class="badge bg-success">
+                                        <i class="fa fa-check-circle me-1"/>No Churn
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-muted small fw-bold">PROBABILITY LEVEL</div>
+                                <div>
+                                    <span t-if="props.latestPrediction.probability_level == 'low'" class="badge bg-success">Low Risk</span>
+                                    <span t-if="props.latestPrediction.probability_level == 'medium'" class="badge bg-warning text-dark">Medium Risk</span>
+                                    <span t-if="props.latestPrediction.probability_level == 'high'" class="badge bg-danger">High Risk</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-muted small fw-bold">NUMBER OF PRODUCTS</div>
+                                <div t-esc="props.latestPrediction.product_count"/>
+                            </div>
+                        </div>
+                        
+                        <!-- Cột bên phải -->
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <div class="text-muted small fw-bold">PREDICTION DATE</div>
+                                <div t-esc="props.latestPrediction.prediction_date"/>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-muted small fw-bold">CHURN PROBABILITY</div>
+                                <div>
+                                    <span t-attf-class="badge {{ props.latestPrediction.probability > 70 ? 'bg-danger' : props.latestPrediction.probability > 30 ? 'bg-warning text-dark' : 'bg-success' }}">
+                                        <i class="fa fa-percentage me-1"/><t t-esc="props.latestPrediction.probability.toFixed(2)"/>%
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-muted small fw-bold">IS HIGH RISK</div>
+                                <div>
+                                    <span t-if="props.latestPrediction.is_high_risk" class="badge bg-danger">
+                                        <i class="fa fa-exclamation-triangle me-1"/>High Risk
+                                    </span>
+                                    <span t-else="" class="badge bg-success">
+                                        <i class="fa fa-shield-alt me-1"/>Low Risk
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+                <t t-else="">
+                    <hr/>
+                    <div class="text-center text-muted p-3">
+                        <i class="fa fa-info-circle me-2"/>
+                        <span>No prediction data available for this customer.</span>
+                    </div>
+                </t>
+                <!-- === KẾT THÚC PHẦN THÔNG TIN DỰ ĐOÁN === -->
+
+            </div>
+        </div>
+    </t>
+</templates>
