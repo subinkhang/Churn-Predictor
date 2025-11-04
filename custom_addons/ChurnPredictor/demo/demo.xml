@@ -3,8 +3,59 @@
     <data noupdate="1">
 
         <!-- ====================================================== -->
-        <!-- 1. TẠO CÁC KHÁCH HÀNG MẪU - ĐÃ BỔ SUNG THÊM BANG MỚI -->
+        <!-- PHẦN LẤY TỪ DEMO 2 (SẢN PHẨM, DANH MỤC...)           -->
         <!-- ====================================================== -->
+
+        <!-- Danh mục sản phẩm mẫu -->
+        <record id="demo_categ_electronics" model="product.category">
+            <field name="name">Electronics</field>
+        </record>
+        <record id="demo_categ_furniture" model="product.category">
+            <field name="name">Furniture</field>
+        </record>
+        <record id="demo_categ_food" model="product.category">
+            <field name="name">Food &amp; Drink</field>
+        </record>
+
+        <!-- Sản phẩm mẫu -->
+        <record id="demo_product_laptop" model="product.product">
+            <field name="name">Laptop Pro (Demo)</field>
+            <field name="categ_id" ref="demo_categ_electronics"/>
+            <field name="list_price">1200.0</field>
+            <field name="type">product</field>
+        </record>
+        <record id="demo_product_chair" model="product.product">
+            <field name="name">Ergonomic Chair (Demo)</field>
+            <field name="categ_id" ref="demo_categ_furniture"/>
+            <field name="list_price">250.0</field>
+            <field name="type">product</field>
+        </record>
+        <record id="demo_product_coffee" model="product.product">
+            <field name="name">Organic Coffee Beans (Demo)</field>
+            <field name="categ_id" ref="demo_categ_food"/>
+            <field name="list_price">25.0</field>
+            <field name="type">product</field>
+        </record>
+        
+        <!-- Phương thức thanh toán mẫu -->
+        <!-- <record id="payment_acquirer_credit_card" model="payment.provider">
+            <field name="name">Credit Card</field>
+            <field name="code">custom</field>
+            <field name="custom_mode">manual</field>
+            <field name="state">test</field>
+        </record>
+        <record id="payment_acquirer_wire" model="payment.provider">
+            <field name="name">Wire Transfer</field>
+            <field name="code">custom</field>
+            <field name="custom_mode">manual</field>
+            <field name="state">test</field>
+        </record> -->
+
+        <!-- ====================================================== -->
+        <!-- PHẦN LẤY TỪ DEMO 1 (KHÁCH HÀNG, DỰ ĐOÁN TĨNH)         -->
+        <!-- ====================================================== -->
+        
+        <!-- 1. TẠO CÁC KHÁCH HÀNG MẪU - ĐÃ BỔ SUNG THÊM BANG MỚI -->
         <record id="demo_partner_techcorp" model="res.partner">
             <field name="name">TechCorp Solutions (Demo)</field>
             <field name="state_id" ref="base.state_us_5"/> <!-- California -->
@@ -42,9 +93,7 @@
             <field name="country_id" ref="base.us"/>
         </record>
 
-        <!-- ====================================================== -->
         <!-- 2. TẠO CÁC KẾT QUẢ DỰ ĐOÁN - DỮ LIỆU PHONG PHÚ HƠN   -->
-        <!-- ====================================================== -->
         
         <!-- Dữ liệu cho California (US) -->
         <record id="demo_pred_ca_01" model="churn.prediction">
@@ -160,39 +209,92 @@
             <field name="probability">6.10</field>
             <field name="product_count">2</field>
         </record>
-<!-- Đơn hàng cho MotorCity Motors (Demo) -->
-        <record id="sale_order_motorcity_01" model="sale.order">
+
+        <!-- ========================================================================= -->
+        <!-- PHẦN GỘP DỮ LIỆU GIAO DỊCH VÀ REVIEW TỪ CẢ 2 FILE DEMO                     -->
+        <!-- ID của các bản ghi từ demo 1 được đổi tên để tránh trùng lặp ('_d1')      -->
+        <!-- ========================================================================= -->
+
+        <!-- Đơn hàng từ Demo 1 -->
+        <record id="sale_order_motorcity_01_d1" model="sale.order">
             <field name="partner_id" ref="demo_partner_motorcity"/>
             <field name="partner_invoice_id" ref="demo_partner_motorcity"/>
             <field name="partner_shipping_id" ref="demo_partner_motorcity"/>
             <field name="date_order" eval="(DateTime.now() - relativedelta(months=3)).strftime('%Y-%m-%d %H:%M:%S')"/>
-            <!-- Trạng thái 'sale' là đã được xác nhận -->
             <field name="state">sale</field>
         </record>
-
-        <!-- Đơn hàng cho TechCorp Solutions (Demo) -->
-        <record id="sale_order_techcorp_01" model="sale.order">
+        <record id="sale_order_techcorp_01_d1" model="sale.order">
             <field name="partner_id" ref="demo_partner_techcorp"/>
             <field name="partner_invoice_id" ref="demo_partner_techcorp"/>
             <field name="partner_shipping_id" ref="demo_partner_techcorp"/>
             <field name="date_order" eval="(DateTime.now() - relativedelta(months=2, days=5)).strftime('%Y-%m-%d %H:%M:%S')"/>
             <field name="state">sale</field>
         </record>
-        <record id="sale_order_techcorp_02" model="sale.order">
+        <record id="sale_order_techcorp_02_d1" model="sale.order">
             <field name="partner_id" ref="demo_partner_techcorp"/>
             <field name="partner_invoice_id" ref="demo_partner_techcorp"/>
             <field name="partner_shipping_id" ref="demo_partner_techcorp"/>
             <field name="date_order" eval="(DateTime.now() - relativedelta(months=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
             <field name="state">sale</field>
         </record>
-        
-        <!-- Đơn hàng cho Fresh Farm Goods (Demo) -->
-         <record id="sale_order_freshfarm_01" model="sale.order">
+        <record id="sale_order_freshfarm_01_d1" model="sale.order">
             <field name="partner_id" ref="demo_partner_freshfarm"/>
             <field name="partner_invoice_id" ref="demo_partner_freshfarm"/>
             <field name="partner_shipping_id" ref="demo_partner_freshfarm"/>
             <field name="date_order" eval="(DateTime.now() - relativedelta(days=40)).strftime('%Y-%m-%d %H:%M:%S')"/>
             <field name="state">sale</field>
         </record>
+        
+        <!-- Đơn hàng từ Demo 2 -->
+        <record id="sale_order_techcorp_01" model="sale.order">
+            <field name="partner_id" ref="demo_partner_techcorp"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(days=90)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="commitment_date" eval="(DateTime.now() - relativedelta(days=85)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+            <field name="order_line" eval="[(0, 0, {'product_id': ref('demo_product_laptop'), 'product_uom_qty': 1, 'price_unit': 1200.0})]"/>
+        </record>
+        <record id="sale_order_techcorp_02" model="sale.order">
+            <field name="partner_id" ref="demo_partner_techcorp"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(days=20)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="commitment_date" eval="(DateTime.now() - relativedelta(days=15)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+            <field name="order_line" eval="[(0, 0, {'product_id': ref('demo_product_chair'), 'product_uom_qty': 2, 'price_unit': 250.0})]"/>
+        </record>
+        <record id="review_techcorp_02" model="mail.message">
+            <field name="model">sale.order</field>
+            <field name="res_id" ref="sale_order_techcorp_02"/>
+            <field name="message_type">comment</field>
+            <field name="body">Sản phẩm tốt, giao hàng hơi trễ một chút nhưng chấp nhận được.</field>
+        </record>
+        <record id="sale_order_global_01" model="sale.order">
+            <field name="partner_id" ref="demo_partner_global"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(months=8)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+            <field name="order_line" eval="[(0, 0, {'product_id': ref('demo_product_chair'), 'product_uom_qty': 4, 'price_unit': 240.0})]"/>
+        </record>
+        <record id="review_global_01" model="mail.message">
+            <field name="model">sale.order</field>
+            <field name="res_id" ref="sale_order_global_01"/>
+            <field name="message_type">comment</field>
+            <field name="body">OK</field>
+        </record>
+        <record id="sale_order_foodies_01" model="sale.order">
+            <field name="partner_id" ref="demo_partner_foodies"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(days=15)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+            <field name="order_line" eval="[(0, 0, {'product_id': ref('demo_product_coffee'), 'product_uom_qty': 10, 'price_unit': 25.0})]"/>
+        </record>
+        <record id="sale_order_foodies_02" model="sale.order">
+            <field name="partner_id" ref="demo_partner_foodies"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(days=5)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+            <field name="order_line" eval="[(0, 0, {'product_id': ref('demo_product_coffee'), 'product_uom_qty': 5, 'price_unit': 25.0})]"/>
+        </record>
+        <record id="sale_order_freshfarm_01" model="sale.order">
+            <field name="partner_id" ref="demo_partner_freshfarm"/>
+            <field name="date_order" eval="(DateTime.now() - relativedelta(days=40)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="state">sale</field>
+        </record>
+
     </data>
 </odoo>
