@@ -8,6 +8,7 @@ services:
       POSTGRES_USER: odoo
       POSTGRES_PASSWORD: postgres123 # Mật khẩu bạn đã đặt
       PGDATABASE: ChurnPredictor_v2 # Database mặc định
+      TZ: Asia/Ho_Chi_Minh
     ports:
       - "5433:5432"
     volumes:
@@ -32,6 +33,7 @@ services:
       PGDATABASE: ChurnPredictor_v2 # Tên DB sẽ restore vào
       # Tùy chọn: ADMIN_PASSWORD giúp quản lý DB qua UI dễ hơn
       ADMIN_PASSWORD: admin123
+      TZ: Asia/Ho_Chi_Minh
     volumes:
       - odoo_web_data:/var/lib/odoo
       # Mount thư mục addon tùy chỉnh

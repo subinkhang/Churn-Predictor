@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 
+        Thẻ <data noupdate="1"> rất quan trọng.
+        noupdate="1" có nghĩa là Odoo chỉ tạo bản ghi này lần đầu tiên khi cài module.
+        Nếu sau này người dùng thay đổi lịch chạy cron job (ví dụ: từ hàng ngày sang hàng tuần)
+        trên giao diện, việc cập nhật module sẽ không ghi đè lại thay đổi đó của họ.
+    -->
+    <data noupdate="1">
+
+        <!-- Định nghĩa Scheduled Action (Cron Job) để dự đoán churn hàng ngày -->
+        <record id="cron_daily_churn_prediction" model="ir.cron">
+            
+            <!-- Tên sẽ hiển thị trong danh sách Scheduled Actions của Odoo -->
+            <field name="name">Churn Predictor: Daily Prediction vs Warning</field>
+            
+            <!-- Model chứa phương thức sẽ được gọi. ref="base.model_res_partner" là cách Odoo tham chiếu đến model 'res.partner' -->
+            <field name="model_id" ref="base.model_res_partner"/>
+            
+            <!-- Trạng thái: 'code' có nghĩa là chúng ta sẽ thực thi một đoạn mã Python -->
+            <field name="state">code</field>
+            
+            <!-- Đoạn code sẽ được thực thi. 'model' ở đây là một recordset rỗng của model đã khai báo ở trên ('res.partner') -->
+            <field name="code">model._cron_predict_churn()</field>
+            
+            <!-- Chạy cron job này với quyền của người dùng Admin (root) để đảm bảo có đủ quyền truy cập dữ liệu -->
+            <field name="user_id" ref="base.user_root"/>
+            
+            <!-- Kích hoạt cron job ngay sau khi cài module -->
+            <field name="active" eval="True"/>
+            
+            <!-- Lịch chạy: -->
+            <field name="interval_number">1</field>              <!-- Chạy mỗi 1 ... -->
+            <field name="interval_type">days</field>            <!-- ... ngày. -->
+            
+            <!-- Số lần gọi. -1 có nghĩa là chạy lặp lại mãi mãi, không bao giờ dừng. -->
+            <field name="numbercall">-1</field>
+            
+            <!-- Nếu server bị tắt và bỏ lỡ một lần chạy, không cần phải chạy lại lần đã lỡ đó khi server bật lại. -->
+            <field name="doall" eval="False"/>
+            
+        </record>
+
+    </data>
+</odoo>

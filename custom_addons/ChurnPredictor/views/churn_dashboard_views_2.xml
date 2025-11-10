@@ -5,7 +5,7 @@
             <field name="name">Churn Dashboard</field>
             <field name="tag">owl.churn_dashboard</field>
         </record>
-        <menuitem name="OWL Tutorial" id="menu_owl_tutorial" sequence="10">
+        <menuitem name="Churn Dashboard Action" id="menu_owl_tutorial" sequence="10">
             <menuitem name="Churn Dashboard" id="menu_owl_churn_dashboard" sequence="10" action="action_owl_churn_dashboard"/>
         </menuitem>
     </data>

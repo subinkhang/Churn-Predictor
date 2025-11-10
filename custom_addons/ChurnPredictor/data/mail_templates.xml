@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- 
+            Email Template cho Báo cáo tóm tắt Cron Job Churn Prediction.
+            Template này sử dụng các biến từ 'context' được truyền vào từ code Python.
+            Ví dụ: ctx.get('customers_processed'), ctx.get('high_risk_details'), v.v...
+        -->
+        <record id="email_template_churn_cron_summary" model="mail.template">
+            <field name="name">Churn Predictor: Cron Job Summary</field>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="subject">[Odoo] Churn Prediction Summary - {{ format_datetime(ctx.get('start_time')) }}</field>
+            <field name="email_from">"Odoo Churn Predictor" &lt;{{ object.env.user.company_id.email or 'noreply@odoo.com' }}&gt;</field>
+            
+            <!-- Email người nhận sẽ được lấy từ một System Parameter để bạn có thể thay đổi dễ dàng trên UI -->
+            <field name="email_to">{{ object.env['ir.config_parameter'].sudo().get_param('churn_predictor.recipient_email') }}</field>
+
+            <field name="body_html" type="html">
+                <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+                    <h2>Báo cáo tóm tắt Cron Job dự đoán Churn</h2>
+                    <p>
+                        Chào bạn, <br/>
+                        Cron job dự đoán churn đã hoàn thành vào lúc <strong>{{ format_datetime(ctx.get('end_time')) }}</strong>. Dưới đây là kết quả tóm tắt:
+                    </p>
+                    
+                    <ul style="list-style-type: none; padding: 0;">
+                        <li><strong>Bắt đầu lúc:</strong> {{ format_datetime(ctx.get('start_time')) }}</li>
+                        <li><strong>Số khách hàng được phân tích:</strong> <strong style="color: blue;">{{ ctx.get('customers_processed') }}</strong></li>
+                        <li><strong>Số khách hàng nguy cơ cao được phát hiện:</strong> <strong style="color: red;">{{ ctx.get('high_risk_found') }}</strong></li>
+                    </ul>
+
+                    <h3 style="margin-top: 20px;">Danh sách các khách hàng đã được phân tích:</h3>
+                    <p style="color: #555;">
+                        {{ ctx.get('processed_customer_names', 'Không có') }}
+                    </p>
+
+                    <!-- Chỉ cần dòng này để hiển thị toàn bộ bảng chi tiết -->
+                    {{ ctx.get('high_risk_table_html', '') }}
+
+                    {{ ctx.get('overview_button_html', '') }}
+                    
+                    <p style="margin-top: 20px;">
+                        <em>Đây là email tự động từ hệ thống Odoo của bạn.</em>
+                    </p>
+                </div>
+            </field>
+        </record>
+    </data>
+</odoo>

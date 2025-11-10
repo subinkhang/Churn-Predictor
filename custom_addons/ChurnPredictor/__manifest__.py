@@ -23,6 +23,8 @@ Long description of module's purpose
     # always loaded
     'data': [
         'security/ir.model.access.csv',
+        'data/cron.xml',
+        'data/mail_templates.xml',
         'views/churn_prediction_views.xml',
         'views/views.xml',
         'views/templates.xml',
@@ -67,4 +69,3 @@ Long description of module's purpose
         ],
     },
 }
-
