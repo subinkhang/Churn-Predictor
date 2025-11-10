@@ -1,37 +1,102 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="churn_predictor.CustomerDashboard" owl="1">
-        <div class="vh-100 overflow-auto bg-muted p-3">
-            <h1 class="text-primary fw-bold mb-3">Churn Detail Dashboard for <t t-esc="state.customerData.name"/></h1>
+        <!-- CSS Cục bộ cho Timeline (Giữ nguyên) -->
+        <style>
+            .customer-timeline { list-style-type: none; padding-left: 20px; position: relative; }
+            .customer-timeline::before { content: ''; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; background: #e9ecef; }
+            .customer-timeline-item { position: relative; padding: 5px 0 15px 25px; cursor: pointer; transition: background-color 0.2s ease; }
+            .customer-timeline-item:hover { background-color: #f8f9fa; }
+            .customer-timeline-item.selected { background-color: #e9f0ff; }
+            .customer-timeline-item .timeline-icon { position: absolute; left: -10px; top: 5px; width: 22px; height: 22px; background: #fff; border: 2px solid #017e84; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1; }
+            .customer-timeline-item .timeline-icon .fa { font-size: 12px; color: #017e84; }
+        </style>
+
+        <div class="o_content vh-100 overflow-auto bg-muted p-lg-4 p-3">
+            <h1 class="text-primary fw-bold mb-4">Churn Detail Dashboard for <t t-esc="state.customerData.name"/></h1>
+
+            <!-- === BẮT ĐẦU PHẦN BỐ CỤC ĐÃ TỐI ƯU === -->
+            
+            <!-- HÀNG 1: Chứa Profile Card (trái) và SHAP (phải) -->
             <div class="row">
-                <!-- Các cột tiếp theo cho các thành phần khác -->
-                <div class="col-lg-4">
-                    <ProfileCard customer="state.customerData" lifetimeValue="state.lifetimeValue" latestPrediction="state.latestPrediction"/>
+                <!-- CỘT TRÁI: Profile Card - Chiếm 8/12 phần không gian -->
+                <div class="col-lg-5 mb-4">
+                    <div class="h-100">
+                        <ProfileCard customer="state.customerData" lifetimeValue="state.lifetimeValue" latestPrediction="state.latestPrediction"/>
+                    </div>
                 </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-12">
-                    <div class="shadow-sm border bg-white p-4 text-center">
-                        <!-- Chỉ hiển thị nút bấm nếu có dữ liệu SHAP -->
-                        <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
-                            <h5 class="mb-3">Prediction Explanation Analysis</h5>
-                            <p class="text-muted">Click the button below to open a detailed SHAP force plot that explains which features contributed to this prediction.</p>
-                            <button class="btn btn-primary" t-on-click="onViewShapClick">
-                                <i class="fa fa-external-link me-2"/>
-                                View SHAP Explanation in New Tab
-                            </button>
-                        </t>
-                        <!-- Hiển thị thông báo nếu không có dữ liệu -->
-                        <t t-else="">
-                            <div class="text-muted p-3">
-                                <i class="fa fa-info-circle me-2"/>
-                                <span>SHAP explanation is not available for this prediction.</span>
+                <div class="col-lg-7 mb-4">
+                    <div class="shadow-sm border bg-white p-4">
+                        <h2 class="mb-4">Customer Interaction Timeline</h2>
+                        <div class="row mb-4">
+                            <div class="col-md-3"><select class="form-select"><option>Date range</option></select></div>
+                            <div class="col-md-3"><select class="form-select"><option>Channel</option></select></div>
+                            <div class="col-md-3"><select class="form-select"><option>Event type</option></select></div>
+                        </div>
+
+                        <!-- Hàng chính chứa biểu đồ và các thông tin chi tiết -->
+                        <div class="row">
+                            <!-- Cột trái: Biểu đồ và Timeline -->
+                            <div class="col-lg-8">
+                                <div class="mb-4" style="height: 250px;">
+                                    <ChartRenderer type="'bar'" config="state.interactionChartConfig"/>
+                                </div>
                             </div>
-                        </t>
+                        </div>
                     </div>
                 </div>
             </div>
-            <!-- Các hàng tiếp theo cho các biểu đồ lớn -->
+
+            <div class="row">
+                <!-- CỘT PHẢI: SHAP Explanation - Chiếm 4/12 phần không gian -->
+                <div class="col-lg-3 mb-4">
+                    <!-- Sử dụng card và flexbox để căn giữa nội dung cho đẹp mắt -->
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center">
+                            <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
+                                <h5 class="mb-3">Prediction Explanation Analysis</h5>
+                                <p class="text-muted small">Click the button below to open a detailed SHAP force plot that explains which features contributed to this prediction.</p>
+                                <button class="btn btn-primary" t-on-click="onViewShapClick">
+                                    <i class="fa fa-external-link me-2"/>
+                                    View SHAP Explanation
+                                </button>
+                            </t>
+                            <t t-else="">
+                                <div class="text-muted p-3">
+                                    <i class="fa fa-info-circle me-2"/>
+                                    <span>SHAP explanation is not available for this prediction.</span>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 h-100">
+                    <div class="card-body">
+                        <h5 class="text-muted">Timeline</h5>
+                        <ul class="customer-timeline">
+                            <t t-foreach="state.interactionData.timeline" t-as="event" t-key="event.id">
+                                <li t-on-click="() => this.onSelectEvent(event)" t-att-class="{ 'customer-timeline-item': true, 'selected': state.selectedEvent and state.selectedEvent.id === event.id }">
+                                    <div class="timeline-icon"><i t-att-class="'fa ' + event.icon"/></div>
+                                    <div class="fw-bold"><t t-esc="event.title"/></div>
+                                    <div class="small text-muted"><t t-esc="event.date"/></div>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Cột phải: Insights và Chi tiết sự kiện -->
+                <div class="col-lg-5 d-flex flex-column">
+                    <div class="card mb-3"><div class="card-header fw-bold">Insights</div><ul class="list-group list-group-flush"><t t-foreach="state.interactionData.insights" t-as="insight" t-key="insight"><li class="list-group-item"><i class="fa fa-lightbulb-o text-warning me-2"/> <t t-esc="insight"/></li></t></ul></div>
+                    <div class="card flex-grow-1"><div class="card-header fw-bold">Event Details</div><div class="card-body"><t t-if="state.selectedEvent"><div class="mb-2"><strong>Type:</strong> <span class="badge bg-secondary"><t t-esc="state.selectedEvent.type"/></span></div><div class="mb-2"><strong>Date:</strong> <t t-esc="state.selectedEvent.date"/></div><div class="mb-2"><strong>Channel:</strong> <t t-esc="state.selectedEvent.channel"/></div><hr/><p class="mb-0"><t t-esc="state.selectedEvent.description"/></p></t><t t-else=""><div class="text-muted text-center p-3"><i class="fa fa-hand-pointer-o fa-2x mb-2"/><div>Click an event on the timeline to see details.</div></div></t></div></div>
+                </div>
+            </div>
+
+            <!-- HÀNG 2: Customer Interaction Timeline - Chiếm toàn bộ chiều rộng -->
+            
+            <!-- === KẾT THÚC PHẦN BỐ CỤC ĐÃ TỐI ƯU === -->
+
         </div>
     </t>
 </templates>

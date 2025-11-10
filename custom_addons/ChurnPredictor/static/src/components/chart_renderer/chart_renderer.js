@@ -1,47 +1,71 @@
 /** @odoo-module */
 
 import { loadJS } from "@web/core/assets";
-const { Component, onWillStart, useRef, onMounted } = owl;
+// === UPDATE 1: Thêm 'onWillUpdateProps' và 'onWillDestroy' vào danh sách import ===
+const { Component, onWillStart, useRef, onMounted, onWillUpdateProps, onWillDestroy } = owl;
 
 export class ChartRenderer extends Component {
     setup(){
-        // === KHÔI PHỤC 100% CODE GỐC CỦA BẠN ===
-        this.chartRef = useRef("chart")
+        this.chartRef = useRef("chart");
+        
+        // === UPDATE 2: Thêm biến để lưu trữ instance của biểu đồ ===
+        this.chart = null;
+
         onWillStart(async ()=>{
+            // Giữ nguyên 100% logic tải thư viện của bạn
             await Promise.all([
                 loadJS("https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"),
                 loadJS("https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"),
             ]);
-        })
+        });
 
-        onMounted(()=>this.renderChart())
+        onMounted(() => {
+            this.renderChart();
+        });
+
+        // === UPDATE 3: Thêm hook 'onWillUpdateProps' để biểu đồ có thể nhận dữ liệu mới ===
+        onWillUpdateProps((nextProps) => {
+            this.renderChart(nextProps);
+        });
+
+        // === UPDATE 4: Thêm hook 'onWillDestroy' để dọn dẹp, tránh rò rỉ bộ nhớ ===
+        onWillDestroy(() => {
+            if (this.chart) {
+                this.chart.destroy();
+            }
+        });
     }
 
-    renderChart(){
+    // Thêm `props` làm tham số để dùng cho onWillUpdateProps
+    renderChart(props = this.props) {
+        // === UPDATE 5: Thêm logic hủy biểu đồ cũ trước khi vẽ cái mới ===
+        if (this.chart) {
+            this.chart.destroy();
+        }
+
+        // Giữ nguyên 100% logic đăng ký plugin của bạn
         if (window.ChartDataLabels) {
             Chart.register(window.ChartDataLabels);
         }
 
-        if (!this.props.config && this.props.type !== 'gauge' && this.props.type !== 'customDoughnut') {
-            // (Trừ 2 loại chart đặc biệt không cần config động)
-            // Code cũ của bạn sẽ vẽ biểu đồ rỗng nếu muốn
-            // Ở đây ta chọn không vẽ gì để tránh lỗi
+        // Giữ nguyên 100% logic kiểm tra props của bạn
+        if (!props.config && props.type !== 'gauge' && props.type !== 'customDoughnut') {
             return; 
         }
 
-        if (this.props.type === 'gauge') {
-            this.renderGaugeChart();
-        } else if (this.props.type === 'customDoughnut') {
-            this.renderCustomDoughnutChart();
+        // Giữ nguyên 100% logic lựa chọn loại biểu đồ của bạn
+        if (props.type === 'gauge') {
+            // Lưu instance biểu đồ mới vào this.chart
+            this.chart = this.renderGaugeChart(props);
+        } else if (props.type === 'customDoughnut') {
+            this.chart = this.renderCustomDoughnutChart(props);
         } else {
-            // Code gốc của bạn sẽ được thay thế bằng code động
-            new Chart(this.chartRef.el,
+            this.chart = new Chart(this.chartRef.el,
             {
-              type: this.props.type, // 'bar', 'pie', etc.
-              // Dữ liệu bây giờ được lấy từ prop 'config'
+              type: props.type,
               data: {
-                labels: this.props.config.labels,
-                datasets: this.props.config.datasets
+                labels: props.config.labels,
+                datasets: props.config.datasets
               },
               options: {
                 responsive: true,
@@ -51,16 +75,16 @@ export class ChartRenderer extends Component {
                   },
                   title: {
                     display: true,
-                    text: this.props.title,
+                    text: props.title,
                     position: 'bottom',
                   }
                 }
               },
-            }
-          );
+            });
         }
     }
 
+    // Các hàm render biểu đồ chi tiết được sửa lại để trả về instance của Chart
     renderGaugeChart() {
         const value = this.props.config.data[0] || 0;
 
@@ -206,7 +230,7 @@ export class ChartRenderer extends Component {
     }
 }
 
-// GIỮ NGUYÊN TÊN TEMPLATE CŨ CỦA BẠN
+// Giữ nguyên 100% tên template và props của bạn
 ChartRenderer.template = "owl.ChartRenderer";
 ChartRenderer.props = {
     type: String,

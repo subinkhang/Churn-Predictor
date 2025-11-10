@@ -1,3 +1,4 @@
+from calendar import month_abbr
 import os
 import joblib
 import pickle
@@ -10,6 +11,7 @@ import base64
 from io import StringIO
 from datetime import timedelta
 import re
+from dateutil.relativedelta import relativedelta
 
 _logger = logging.getLogger(__name__)
 
@@ -436,3 +438,130 @@ class ResPartner(models.Model):
             _logger.error(f"Lỗi khi gửi email báo cáo cron job: {e}", exc_info=True)
         finally:
             _logger.info("===== KẾT THÚC CRON JOB DỰ ĐOÁN CHURN HÀNG NGÀY =====")
+            
+    @api.model
+    def get_interaction_timeline_data(self, customer_id):
+        """
+        Tổng hợp dữ liệu tương tác của khách hàng từ các nguồn dữ liệu thật của Odoo:
+        - res.partner: Ngày tạo tài khoản.
+        - sale.order: Các đơn hàng đã xác nhận.
+        - mail.message: Các ghi chú, email liên quan đến khách hàng.
+        """
+        partner = self.browse(customer_id)
+        all_events = []
+        
+        # --- 1. LẤY DỮ LIỆU TỪ CÁC MODEL KHÁC NHAU ---
+
+        # Sự kiện 1: Ngày tạo khách hàng
+        if partner.create_date:
+            all_events.append({
+                'id': f'partner-{partner.id}',
+                'date': partner.create_date,
+                'title': 'Account Created',
+                'type': 'system',
+                'channel': 'Odoo',
+                'icon': 'fa-user-plus',
+                'description': f"Customer account for {partner.name} was created."
+            })
+
+        # Sự kiện 2: Các đơn hàng đã xác nhận (Sale or Done)
+        sales_orders = self.env['sale.order'].search([
+            ('partner_id', '=', customer_id),
+            ('state', 'in', ['sale', 'done'])
+        ])
+        for order in sales_orders:
+            all_events.append({
+                'id': f'sale-{order.id}',
+                'date': order.date_order,
+                'title': f'Order {order.name} Confirmed',
+                'type': 'payment',
+                'channel': 'Sales',
+                'icon': 'fa-shopping-cart',
+                'description': f"Order {order.name} was confirmed for a total of {order.amount_total} {order.currency_id.symbol}."
+            })
+            
+        # Sự kiện 3: Các tin nhắn, ghi chú, email liên quan
+        messages = self.env['mail.message'].search([
+            ('res_id', '=', customer_id),
+            ('model', '=', 'res.partner'),
+            ('message_type', '!=', 'notification') # Bỏ qua các tin nhắn hệ thống
+        ])
+        for msg in messages:
+            # Rút gọn nội dung để hiển thị
+            body_preview = (msg.body.strip('<p>').strip('</p>'))[:150] + '...' if len(msg.body) > 150 else (msg.body.strip('<p>').strip('</p>'))
+            all_events.append({
+                'id': f'msg-{msg.id}',
+                'date': msg.date,
+                'title': 'Communication Logged',
+                'type': 'communication',
+                'channel': 'Note/Email',
+                'icon': 'fa-comments-o',
+                'description': body_preview
+            })
+
+        # Sắp xếp tất cả các sự kiện theo ngày tháng (mới nhất lên đầu)
+        # Chuyển đổi date object sang string ở bước này để đảm bảo tính nhất quán
+        timeline_events_formatted = []
+        for event in sorted(all_events, key=lambda e: e['date'], reverse=True):
+            event['date_obj'] = event['date'] # Giữ lại object datetime để xử lý biểu đồ
+            event['date'] = event['date'].strftime('%Y-%m-%d') # Chuyển thành chuỗi cho hiển thị
+            timeline_events_formatted.append(event)
+            
+        # --- 2. CHUẨN BỊ DỮ LIỆU CHO BIỂU ĐỒ (6 THÁNG GẦN NHẤT) ---
+        
+        today = fields.Date.today()
+        # Khởi tạo labels và values cho 6 tháng
+        labels = []
+        values = [0] * 6
+        
+        for i in range(5, -1, -1):
+            # Lấy ngày của tháng tương ứng (ví dụ: 6 tháng trước, 5 tháng trước, ...)
+            month_date = today - relativedelta(months=i)
+            labels.append(month_abbr[month_date.month])
+
+        # Đếm số lượng sự kiện trong mỗi tháng
+        for event in all_events:
+            event_date = event['date_obj']
+            # Kiểm tra xem sự kiện có nằm trong khoảng 6 tháng gần đây không
+            if today - relativedelta(months=6) < event_date.date() <= today:
+                months_ago = (today.year - event_date.year) * 12 + (today.month - event_date.month)
+                if 0 <= months_ago < 6:
+                    # Index trong mảng values (0 = 5 tháng trước, ..., 5 = tháng này)
+                    index = 5 - months_ago
+                    values[index] += 1
+                    
+        chart_data = {
+            'labels': labels,
+            'values': values
+        }
+
+        # --- 3. TẠO CÁC INSIGHTS TỰ ĐỘNG ---
+        
+        insights = []
+        # Insight 1: So sánh hoạt động tháng này và tháng trước
+        last_30_days_count = sum(1 for e in all_events if e['date_obj'] > fields.Datetime.now() - timedelta(days=30))
+        prev_30_days_count = sum(1 for e in all_events if fields.Datetime.now() - timedelta(days=60) < e['date_obj'] <= fields.Datetime.now() - timedelta(days=30))
+        
+        if prev_30_days_count > 0:
+            percentage_change = ((last_30_days_count - prev_30_days_count) / prev_30_days_count) * 100
+            if percentage_change >= 0:
+                insights.append(f"Activity increased by {percentage_change:.0f}% in the last 30 days.")
+            else:
+                insights.append(f"Activity dropped by {abs(percentage_change):.0f}% in the last 30 days.")
+        elif last_30_days_count > 0:
+            insights.append("New activity recorded in the last 30 days.")
+        
+        # Insight 2: Thời gian từ lần mua hàng cuối cùng
+        if sales_orders:
+            last_order_date = max(order.date_order for order in sales_orders)
+            days_since_last_order = (fields.Datetime.now() - last_order_date).days
+            insights.append(f"Last purchase was {days_since_last_order} days ago.")
+        else:
+            insights.append("No purchase history found for this customer.")
+
+        # --- 4. TRẢ VỀ KẾT QUẢ ---
+        return {
+            'timeline': timeline_events_formatted,
+            'chart_data': chart_data,
+            'insights': insights
+        }
