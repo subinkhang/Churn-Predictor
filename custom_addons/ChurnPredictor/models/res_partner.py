@@ -29,6 +29,18 @@ class ResPartner(models.Model):
         default='buyer',
         help="Phân loại khách hàng là người mua hay nhà cung cấp."
     )
+    
+    x_churn_risk_level = fields.Selection(
+        [
+            ('low', 'Low Risk'),
+            ('medium', 'Medium Risk'),
+            ('high', 'High Risk'),
+        ],
+        string="Churn Risk Level",
+        default=False, # Không có giá trị mặc định khi mới tạo
+        index=True, # Thêm index để truy vấn nhanh hơn
+        help="The latest churn risk assessment for this customer."
+    )
 
     def action_predict_churn(self):
         """
@@ -219,6 +231,11 @@ class ResPartner(models.Model):
                 'probability': probability_value,
                 'shap_html': encoded_shap_html_bytes, # <<<--- LƯU DỮ LIỆU ĐÃ MÃ HÓA
             })
+            
+            customer.write({
+                'x_churn_risk_level': new_prediction.probability_level
+            })
+
             records_to_show += new_prediction
             _logger.info(
                 "Đã lưu kết quả dự đoán cho khách hàng %s: Result=%s, Probability=%.2f%%",
@@ -272,6 +289,100 @@ class ResPartner(models.Model):
             'context': {'active_id': self.id},
         }
         
+    def write(self, vals):
+        old_risk_levels = {
+            partner: partner.x_churn_risk_level for partner in self
+        }
+        res = super(ResPartner, self).write(vals)
+
+        if 'x_churn_risk_level' in vals:
+            _logger.info("Phát hiện thay đổi trạng thái Churn Risk. Bắt đầu kiểm tra...")
+            for partner in self:
+                old_level = old_risk_levels.get(partner)
+                new_level = partner.x_churn_risk_level
+                
+                if new_level == 'high' and old_level != 'high':
+                # if new_level == 'high':
+                    _logger.warning(
+                        "!!! CẢNH BÁO: Khách hàng '%s' (ID: %d) vừa chuyển sang trạng thái NGUY CƠ CAO.",
+                        partner.name, partner.id
+                    )
+                    
+                    # === GỌI LOGIC GỬI EMAIL TỪ ĐÂY ===
+                    try:
+                        partner._send_high_risk_alert_email()
+                    except Exception as e:
+                        _logger.error(
+                            "Lỗi khi gửi email cảnh báo nguy cơ cao cho khách hàng %s: %s",
+                            partner.name, e
+                        )
+        return res
+
+    def _send_high_risk_alert_email(self):
+        """
+        Phương thức được cập nhật để xây dựng HTML trong code và gửi đi,
+        dựa trên kiến trúc mới.
+        """
+        self.ensure_one()
+
+        if not self.user_id or not self.user_id.email:
+            _logger.info("Bỏ qua gửi email cho KH '%s' vì không có Salesperson hoặc email.", self.name)
+            return
+
+        _logger.info("Chuẩn bị gửi email cảnh báo nguy cơ cao cho Salesperson của KH '%s'.", self.name)
+        
+        template = self.env.ref('ChurnPredictor.email_template_high_risk_alert')
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+
+        # --- Xây dựng các chuỗi HTML trong Python ---
+        
+        # 1. Chi tiết thông tin khách hàng
+        customer_details_html = f"""
+            <div style="border: 1px solid #ccc; padding: 15px; margin: 15px 0; background-color: #f9f9f9;">
+                <strong>Tên khách hàng:</strong> {self.name} <br/>
+                <strong>Email:</strong> {self.email or 'N/A'} <br/>
+                <strong>Số điện thoại:</strong> {self.phone or 'N/A'} <br/>
+                <strong>Nhân viên phụ trách:</strong> {self.user_id.name or 'Chưa có'}
+            </div>
+        """
+        
+        # 2. Nút bấm hành động (link đến form khách hàng)
+        customer_form_url = f"{base_url}/web#id={self.id}&model=res.partner&view_type=form"
+        action_button_html = f"""
+            <div style="text-align: center; margin: 20px 0;">
+                <a href="{customer_form_url}"
+                   style="display: inline-block; padding: 10px 20px; background-color: #d9534f; color: #fff; text-decoration: none; border-radius: 5px;">
+                    Xem chi tiết Khách hàng
+                </a>
+            </div>
+        """
+        
+        # --- Chuẩn bị context để render template ---
+        render_context = {
+            'recipient_email': self.user_id.email,
+            'salesperson_name': self.user_id.name,
+            'customer_details_html': customer_details_html,
+            'action_button_html': action_button_html,
+        }
+
+        # Render và gửi email (sử dụng phương thức render thủ công đáng tin cậy)
+        rendered_subject = template.with_context(**render_context)._render_template(template.subject, 'res.partner', [self.id])[self.id]
+        rendered_body = template.with_context(**render_context)._render_template(template.body_html, 'res.partner', [self.id])[self.id]
+
+        mail_values = {
+            'subject': rendered_subject,
+            'body_html': rendered_body,
+            'email_to': self.user_id.email,
+            'email_from': template.email_from,
+            'author_id': self.env.user.partner_id.id,
+            'auto_delete': True,
+        }
+        
+        mail = self.env['mail.mail'].sudo().create(mail_values)
+        mail.send()
+        
+        _logger.info("Đã đưa email cảnh báo cho KH '%s' vào hàng đợi để gửi đến %s.", self.name, self.user_id.email)
+
         
     @api.model
     def _cron_predict_churn(self):

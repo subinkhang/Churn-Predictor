@@ -234,6 +234,6 @@ export class ChartRenderer extends Component {
 ChartRenderer.template = "owl.ChartRenderer";
 ChartRenderer.props = {
     type: String,
-    title: String,
+    title: { type: String, optional: true },
     config: { type: Object, optional: true },
 };

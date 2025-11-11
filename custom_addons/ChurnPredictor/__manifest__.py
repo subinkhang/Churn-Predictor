@@ -25,6 +25,7 @@ Long description of module's purpose
         'security/ir.model.access.csv',
         'data/cron.xml',
         'data/mail_templates.xml',
+        'data/high_risk_alert_template.xml',
         'views/churn_prediction_views.xml',
         'views/views.xml',
         'views/templates.xml',
