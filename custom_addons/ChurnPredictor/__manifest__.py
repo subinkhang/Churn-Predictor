@@ -26,6 +26,7 @@ Long description of module's purpose
         'data/cron.xml',
         'data/mail_templates.xml',
         'data/high_risk_alert_template.xml',
+        'data/ir_config_parameter_data.xml',
         'views/churn_prediction_views.xml',
         'views/views.xml',
         'views/templates.xml',
@@ -67,6 +68,8 @@ Long description of module's purpose
             'scikit-learn',
             'xgboost',
             'shap',
+            'requests',
+            'markdown2',
         ],
     },
 }

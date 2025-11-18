@@ -12,6 +12,7 @@ from io import StringIO
 from datetime import timedelta
 import re
 from dateutil.relativedelta import relativedelta
+import json
 
 _logger = logging.getLogger(__name__)
 
@@ -174,14 +175,20 @@ class ResPartner(models.Model):
             _logger.error("Dtypes của final_input_df ngay trước khi lỗi:\n%s", final_input_df.dtypes)
             raise UserError(_("Đã xảy ra lỗi trong quá trình dự đoán của mô hình: %s", str(e)))
 
-        # === BƯỚC 4.5: TÍNH TOÁN VÀ TẠO BIỂU ĐỒ SHAP === (PHẦN CẬP NHẬT)
+        # === BƯỚC 4.5: TÍNH TOÁN VÀ TẠO BIỂU ĐỒ SHAP ===
         shap_html_outputs = []
+        # <<< CẬP NHẬT: Tạo list để chứa dữ liệu JSON >>>
+        shap_json_outputs = []
         try:
             _logger.info("Bắt đầu tính toán SHAP values.")
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(final_input_df)
+            
+            # <<< CẬP NHẬT: Lấy tên các feature một lần >>>
+            feature_names = final_input_df.columns.tolist()
 
             for i in range(len(final_input_df)):
+                # --- Phần tạo biểu đồ HTML (giữ nguyên) ---
                 plot = shap.force_plot(
                     explainer.expected_value,
                     shap_values[i],
@@ -189,25 +196,26 @@ class ResPartner(models.Model):
                     show=False,
                     matplotlib=False
                 )
-
-                # === THAY ĐỔI 2: Dùng StringIO() thay vì io.BytesIO() ===
-                # Đây là một "file văn bản" trong bộ nhớ.
                 with StringIO() as buffer:
                     shap.save_html(buffer, plot)
-                    # getvalue() của StringIO trả về một chuỗi string, không cần decode nữa.
                     html_content = buffer.getvalue()
-                
                 shap_html_outputs.append(html_content)
+                
+                # --- <<< CẬP NHẬT: Trích xuất và lưu dữ liệu SHAP thô >>> ---
+                shap_raw_data = {
+                    "base_value": float(explainer.expected_value),
+                    "shap_values": shap_values[i].tolist(),
+                    "feature_names": feature_names,
+                    "feature_values": final_input_df.iloc[i].tolist(),
+                }
+                # Chuyển đổi dictionary thành chuỗi JSON và thêm vào list
+                shap_json_outputs.append(json.dumps(shap_raw_data))
+                # ----------------------------------------------------------------
 
-            _logger.info("Hoàn thành tính toán và tạo %d biểu đồ SHAP.", len(shap_html_outputs))
-            for idx, html_content in enumerate(shap_html_outputs):
-                out_path = os.path.join(base_path, f'shap_plot_{idx}.html')
-                with open(out_path, 'w', encoding='utf-8') as f:
-                    f.write(html_content)
-                _logger.info("SHAP HTML saved to %s", out_path)
+            _logger.info("Hoàn thành tính toán và tạo %d biểu đồ SHAP và %d bản ghi dữ liệu JSON.", len(shap_html_outputs), len(shap_json_outputs))
 
         except Exception as e:
-            _logger.error("LỖI CHI TIẾT KHI TẠO BIỂU ĐỒ SHAP: %s", repr(e))
+            _logger.error("LỖI CHI TIẾT KHI TẠO BIỂU ĐỒ/DỮ LIỆU SHAP: %s", repr(e))
             raise UserError(_("Đã xảy ra lỗi trong quá trình tính toán giải thích SHAP. Chi tiết: %s", repr(e)))
 
         # --- BƯỚC 5: LƯU KẾT QUẢ VÀO ODOO ---
@@ -218,10 +226,18 @@ class ResPartner(models.Model):
             prediction_value = predictions[i]
             probability_value = probabilities[i] * 100
             
-            # Lấy mã HTML của SHAP cho khách hàng tương ứng
             shap_html_content = shap_html_outputs[i]
+            shap_data_json_string = shap_json_outputs[i]
 
-            # Tạo bản ghi mới
+            _logger.info("--- [DEBUG] KIỂM TRA DỮ LIỆU TRƯỚC KHI GỌI .create() ---")
+            _logger.info("Customer: %s", customer.name)
+            _logger.info("Kiểu dữ liệu của biến shap_data_json_string: %s", type(shap_data_json_string))
+            _logger.info("Độ dài chuỗi JSON: %d", len(shap_data_json_string) if isinstance(shap_data_json_string, str) else 0)
+            
+            # In ra 1000 ký tự đầu tiên để kiểm tra cấu trúc mà không làm ngập log
+            _logger.info("Nội dung 1000 ký tự đầu của JSON string: \n%s", (shap_data_json_string[:1000] if isinstance(shap_data_json_string, str) else "Dữ liệu không phải chuỗi"))
+            # ---------------------------------
+
             encoded_shap_html_bytes = base64.b64encode(shap_html_content.encode('utf-8'))
 
             # Lưu chuỗi ĐÃ ĐƯỢC MÃ HÓA vào database
@@ -230,6 +246,7 @@ class ResPartner(models.Model):
                 'prediction_result': 'churn' if prediction_value == 1 else 'no_churn',
                 'probability': probability_value,
                 'shap_html': encoded_shap_html_bytes, # <<<--- LƯU DỮ LIỆU ĐÃ MÃ HÓA
+                'shap_data_json': shap_data_json_string,
             })
             
             customer.write({

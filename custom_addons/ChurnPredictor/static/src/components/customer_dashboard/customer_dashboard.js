@@ -14,6 +14,7 @@ export class CustomerDashboard extends Component {
     setup() {
         this.actionService = useService("action");
         this.orm = useService("orm");
+        this.notification = useService("notification");
         this.customerId = this.props.action.context.active_id;
         
         // === UPDATE 3: Dọn dẹp setup() và cập nhật state ===
@@ -32,7 +33,8 @@ export class CustomerDashboard extends Component {
             // Thêm một state mới để chứa object cấu hình cho biểu đồ.
             // Nó sẽ được truyền vào ChartRenderer như một prop.
             interactionChartConfig: null, 
-            selectedEvent: null, 
+            selectedEvent: null,
+            isGeneratingExplanation: false,
         });
 
         onWillStart(async () => {
@@ -61,11 +63,19 @@ export class CustomerDashboard extends Component {
             this.state.lifetimeValue = total.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
         }
     }
+
     async loadLatestPrediction() {
         if (!this.customerId) return;
-        const fieldsToLoad = ['prediction_result', 'prediction_date', 'probability', 'probability_level', 'product_count', 'churn_rate', 'is_high_risk', 'shap_html'];
+        // Yêu cầu thêm 2 trường mới từ backend
+        const fieldsToLoad = [
+            'prediction_result', 'prediction_date', 'probability', 'probability_level', 
+            'product_count', 'churn_rate', 'is_high_risk', 'shap_html',
+            'shap_ai_explanation', 'shap_data_json' // <--- THÊM 2 TRƯỜNG NÀY
+        ];
         const predictionData = await this.orm.searchRead('churn.prediction', [['customer_id', '=', this.customerId]], fieldsToLoad, { order: 'prediction_date desc', limit: 1 });
-        if (predictionData && predictionData.length > 0) this.state.latestPrediction = predictionData[0];
+        if (predictionData && predictionData.length > 0) {
+            this.state.latestPrediction = predictionData[0];
+        }
     }
 
     // === UPDATE 4: Sửa đổi hàm loadInteractionData để chuẩn bị config cho ChartRenderer ===
@@ -107,6 +117,34 @@ export class CustomerDashboard extends Component {
             const predictionId = this.state.latestPrediction.id;
             const url = `/churn_predictor/shap_plot/${predictionId}`;
             window.open(url, '_blank');
+        }
+    }
+
+    async generateAIExplanation() {
+        if (!this.state.latestPrediction || !this.state.latestPrediction.id) {
+            return;
+        }
+        
+        this.state.isGeneratingExplanation = true; // Bật trạng thái loading
+
+        try {
+            await this.orm.call(
+                'churn.prediction', // model
+                'action_generate_ai_explanation', // method
+                [[this.state.latestPrediction.id]] // args (danh sách ID)
+            );
+            
+            // Sau khi thành công, tải lại dữ liệu dự đoán để cập nhật UI
+            await this.loadLatestPrediction(); 
+
+        } catch (error) {
+            // Hiển thị lỗi cho người dùng nếu có sự cố
+            this.notification.add(
+                error.data?.message || "An unknown error occurred.",
+                { type: 'danger', title: 'AI Explanation Failed' }
+            );
+        } finally {
+            this.state.isGeneratingExplanation = false; // Tắt trạng thái loading
         }
     }
 }

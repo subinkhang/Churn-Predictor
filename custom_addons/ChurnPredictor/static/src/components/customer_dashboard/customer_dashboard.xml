@@ -52,6 +52,58 @@
                 <div class="col-lg-3 mb-4">
                     <!-- Sử dụng card và flexbox để căn giữa nội dung cho đẹp mắt -->
                     <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="mb-3">Prediction Analysis</h5>
+
+                            <!-- Phần này chỉ hiển thị khi có một bản ghi dự đoán -->
+                            <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
+                                
+                                <!-- TRƯỜNG HỢP 1: Đã có giải thích từ AI -->
+                                <t t-if="state.latestPrediction.shap_ai_explanation">
+                                    <div class="alert alert-info flex-grow-1">
+                                        <h6 class="alert-heading fw-bold">
+                                            <i class="fa fa-lightbulb-o me-2"/>AI-Powered Analysis
+                                        </h6>
+                                        <div class="small" style="line-height: 1.6;">
+                                            <t t-out="state.latestPrediction.shap_ai_explanation"/>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-secondary mt-2" t-on-click="onViewShapClick">
+                                        <i class="fa fa-area-chart me-2"/>
+                                        View Technical SHAP Plot
+                                    </button>
+                                </t>
+
+                                <!-- TRƯỜNG HỢP 2: Chưa có giải thích, hiển thị nút để tạo -->
+                                <t t-else="">
+                                    <p class="text-muted small flex-grow-1">
+                                        Use our AI assistant to get a simple, easy-to-understand summary of this prediction.
+                                    </p>
+                                    <button class="btn btn-primary mt-2" t-on-click="generateAIExplanation" t-att-disabled="state.isGeneratingExplanation">
+                                        <i t-if="state.isGeneratingExplanation" class="fa fa-spinner fa-spin me-2"/>
+                                        <i t-else="" class="fa fa-magic me-2"/>
+                                        <span><t t-esc="state.isGeneratingExplanation ? 'Generating...' : 'Explain with AI'"/></span>
+                                    </button>
+                                    <button class="btn btn-outline-secondary mt-2" t-on-click="onViewShapClick">
+                                        <i class="fa fa-external-link me-2"/>
+                                        View Technical Plot
+                                    </button>
+                                </t>
+
+                            </t>
+
+                            <!-- Trường hợp không có bản ghi dự đoán nào -->
+                            <t t-else="">
+                                <div class="text-muted text-center flex-grow-1 d-flex align-items-center justify-content-center">
+                                    <div>
+                                        <i class="fa fa-info-circle fa-2x mb-2"/>
+                                        <p>No prediction data is available for this customer.</p>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                    <!-- <div class="card h-100">
                         <div class="card-body d-flex flex-column justify-content-center align-items-center text-center">
                             <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
                                 <h5 class="mb-3">Prediction Explanation Analysis</h5>
@@ -68,7 +120,7 @@
                                 </div>
                             </t>
                         </div>
-                    </div>
+                    </div> -->
                 </div>
 
                 <div class="col-lg-4 h-100">
