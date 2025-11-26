@@ -58,37 +58,48 @@
                             <!-- Phần này chỉ hiển thị khi có một bản ghi dự đoán -->
                             <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
                                 
-                                <!-- TRƯỜNG HỢP 1: Đã có giải thích từ AI -->
-                                <t t-if="state.latestPrediction.shap_ai_explanation">
-                                    <div class="alert alert-info flex-grow-1">
-                                        <h6 class="alert-heading fw-bold">
-                                            <i class="fa fa-lightbulb-o me-2"/>AI-Powered Analysis
-                                        </h6>
-                                        <div class="small" style="line-height: 1.6;">
-                                            <t t-out="state.latestPrediction.shap_ai_explanation"/>
+                                <!-- PHẦN 1: KHU VỰC NỘI DUNG AI (Thay đổi tùy trạng thái) -->
+                                <div class="flex-grow-1 mb-3">
+                                    <!-- Trạng thái A: Đã có giải thích từ AI -->
+                                    <t t-if="state.latestPrediction.shap_ai_explanation">
+                                        <div class="alert alert-info h-100 overflow-auto" style="max-height: 200px;">
+                                            <h6 class="alert-heading fw-bold small">
+                                                <i class="fa fa-lightbulb-o me-2"/>AI Analysis
+                                            </h6>
+                                            <div class="small" style="line-height: 1.5; font-size: 0.85rem;">
+                                                <t t-out="state.latestPrediction.shap_ai_explanation"/>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <button class="btn btn-secondary mt-2" t-on-click="onViewShapClick">
-                                        <i class="fa fa-area-chart me-2"/>
-                                        View Technical SHAP Plot
-                                    </button>
-                                </t>
+                                    </t>
 
-                                <!-- TRƯỜNG HỢP 2: Chưa có giải thích, hiển thị nút để tạo -->
-                                <t t-else="">
-                                    <p class="text-muted small flex-grow-1">
-                                        Use our AI assistant to get a simple, easy-to-understand summary of this prediction.
-                                    </p>
-                                    <button class="btn btn-primary mt-2" t-on-click="generateAIExplanation" t-att-disabled="state.isGeneratingExplanation">
-                                        <i t-if="state.isGeneratingExplanation" class="fa fa-spinner fa-spin me-2"/>
-                                        <i t-else="" class="fa fa-magic me-2"/>
-                                        <span><t t-esc="state.isGeneratingExplanation ? 'Generating...' : 'Explain with AI'"/></span>
-                                    </button>
-                                    <button class="btn btn-outline-secondary mt-2" t-on-click="onViewShapClick">
-                                        <i class="fa fa-external-link me-2"/>
-                                        View Technical Plot
-                                    </button>
-                                </t>
+                                    <!-- Trạng thái B: Chưa có giải thích -> Hiện nút tạo -->
+                                    <t t-else="">
+                                        <div class="text-center text-muted mb-3">
+                                            <small>Use AI to summarize why this customer might churn.</small>
+                                        </div>
+                                        <button class="btn btn-primary w-100 mb-2" t-on-click="generateAIExplanation" t-att-disabled="state.isGeneratingExplanation">
+                                            <i t-if="state.isGeneratingExplanation" class="fa fa-spinner fa-spin me-2"/>
+                                            <i t-else="" class="fa fa-magic me-2"/>
+                                            <t t-esc="state.isGeneratingExplanation ? 'Generating...' : 'Explain with AI'"/>
+                                        </button>
+                                    </t>
+                                </div>
+
+                                <!-- PHẦN 2: KHU VỰC CÔNG CỤ KỸ THUẬT (Luôn hiển thị) -->
+                                <!-- Tách biệt hoàn toàn khỏi logic if/else ở trên -->
+                                <div class="border-top pt-3">
+                                    <div class="d-grid gap-2">
+                                        <!-- Nút xem biểu đồ gốc -->
+                                        <button class="btn btn-outline-secondary btn-sm" t-on-click="onViewShapClick">
+                                            <i class="fa fa-area-chart me-2"/>View Technical Plot
+                                        </button>
+                                        
+                                        <!-- NÚT DEBUG LOGS: Luôn hiển thị nếu có SHAP -->
+                                        <button class="btn btn-outline-dark btn-sm" t-on-click="onCheckDebugLogs">
+                                            <i class="fa fa-terminal me-2"/>Check Debug Logs
+                                        </button>
+                                    </div>
+                                </div>
 
                             </t>
 

@@ -18,7 +18,7 @@ Long description of module's purpose
     'version': '0.1',
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'web', 'sale', 'board', 'stock', 'payment', 'account_payment'],
+    'depends': ['base', 'web', 'sale', 'board', 'stock', 'payment', 'account_payment', 'sale_stock'],
 
     # always loaded
     'data': [
@@ -36,6 +36,10 @@ Long description of module's purpose
         'views/churn_progress_views.xml',
         'views/customer_dashboard_views.xml',
         'views/res_partner_views.xml',
+        'views/res_partner_views.xml', # File này đã có
+        'views/product_views.xml',
+        'views/sale_order_views.xml',
+        'views/rating_views.xml',
     ],
     # only loaded in demonstration mode
     'demo': [

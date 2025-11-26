@@ -42,6 +42,44 @@ class ResPartner(models.Model):
         index=True, # Thêm index để truy vấn nhanh hơn
         help="The latest churn risk assessment for this customer."
     )
+    
+    x_unique_id = fields.Char(string="Unique Customer ID", index=True, readonly=True)
+
+    # 1. NHÓM THANH TOÁN (PAYMENT)
+    x_feat_payment_value_sum = fields.Float(string="Feat: Payment Value Sum", default=0.0)
+    x_feat_payment_value_mean = fields.Float(string="Feat: Payment Value Mean", default=0.0)
+    x_feat_payment_value_max = fields.Float(string="Feat: Payment Value Max", default=0.0)
+    x_feat_payment_value_min = fields.Float(string="Feat: Payment Value Min", default=0.0)
+    
+    # 2. NHÓM GIAO HÀNG (DELIVERY)
+    x_feat_delivery_days_mean = fields.Float(string="Feat: Delivery Days Mean", default=0.0)
+    x_feat_delivery_days_max = fields.Float(string="Feat: Delivery Days Max", default=0.0)
+    x_feat_delivery_delay_days_mean = fields.Float(string="Feat: Delivery Delay Mean", default=0.0)
+    x_feat_delivery_delay_days_max = fields.Float(string="Feat: Delivery Delay Max", default=0.0)
+    
+    # 3. NHÓM ĐÁNH GIÁ (REVIEW)
+    x_feat_review_score_mean = fields.Float(string="Feat: Review Score Mean", default=0.0)
+    x_feat_review_score_min = fields.Float(string="Feat: Review Score Min", default=0.0)
+    x_feat_review_score_std = fields.Float(string="Feat: Review Score Std", default=0.0)
+    
+    # 4. NHÓM SẢN PHẨM & TẦN SUẤT (ITEMS & RFM)
+    x_feat_num_items_sum = fields.Float(string="Feat: Num Items Sum", default=0.0)
+    x_feat_num_items_mean = fields.Float(string="Feat: Num Items Mean", default=0.0)
+    x_feat_frequency = fields.Integer(string="Feat: Frequency", default=0)
+    x_feat_recency = fields.Integer(string="Feat: Recency (Days)", default=0)
+    
+    # 5. NHÓM PHÂN LOẠI (CATEGORICAL - RAW VALUE)
+    # Chiến thuật: Thay vì tạo 100 trường One-Hot (như x_feat_state_SP, x_feat_state_RJ...)
+    # Ta chỉ cần lưu GIÁ TRỊ GỐC. Code Python khi chạy predict sẽ tự động One-Hot Encoding nó.
+    # Điều này giúp bạn import CSV dễ hơn rất nhiều (chỉ cần map cột text vào đây).
+    
+    x_feat_payment_type_last = fields.Char(string="Feat: Last Payment Type", help="Ví dụ: credit_card, boleto...")
+    x_feat_customer_state_last = fields.Char(string="Feat: Last Customer State", help="Ví dụ: SP, RJ, MG...")
+    x_feat_product_category_name_english_last = fields.Char(string="Feat: Last Product Category", help="Ví dụ: health_beauty...")
+
+    # 6. CỜ ĐÁNH DẤU (FLAG)
+    # Dùng để code biết nên lấy dữ liệu từ các trường x_feat_ này hay tự tính toán
+    x_is_imported_data = fields.Boolean(string="Is Imported Data", default=False)
 
     def action_predict_churn(self):
         """
@@ -119,15 +157,61 @@ class ResPartner(models.Model):
                     leaf_category_name = category.display_name.split(' / ')[-1].strip()
                     category_name_last = re.sub(r'\\s+', '_', leaf_category_name).lower()
             
-            raw_data = {
-                'payment_value_sum': payment_value_sum, 'payment_value_mean': payment_value_mean, 'payment_value_max': payment_value_max,
-                'frequency': frequency, 'recency': recency,
-                'review_score_mean': review_score_mean, 'review_score_min': review_score_min,
-                'delivery_days_mean': delivery_days_mean, 'delivery_delay_days_mean': delivery_delay_days_mean,
-                'num_items_sum': num_items_sum,
-                'payment_type_last': payment_type_last, 'customer_state_last': customer_state_last,
-                'product_category_name_english_last': category_name_last,
-            }
+            if customer.x_is_imported_data:
+                _logger.info(f"Khách hàng {customer.name} dùng dữ liệu IMPORT (Feature Store)")
+                
+                # Lấy trực tiếp từ các trường x_feat_
+                raw_data = {
+                    # 1. Payment
+                    'payment_value_sum': customer.x_feat_payment_value_sum,
+                    'payment_value_mean': customer.x_feat_payment_value_mean,
+                    'payment_value_max': customer.x_feat_payment_value_max,
+                    'payment_value_min': customer.x_feat_payment_value_min, # <--- Đã thêm
+                    
+                    # 2. RFM
+                    'frequency': customer.x_feat_frequency,
+                    'recency': customer.x_feat_recency,
+                    
+                    # 3. Review
+                    'review_score_mean': customer.x_feat_review_score_mean,
+                    'review_score_min': customer.x_feat_review_score_min,
+                    'review_score_std': customer.x_feat_review_score_std, # <--- Đã thêm
+                    
+                    # 4. Delivery (QUAN TRỌNG: Khắc phục lỗi 0.00)
+                    'delivery_days_mean': customer.x_feat_delivery_days_mean,
+                    'delivery_days_max': customer.x_feat_delivery_days_max, # <--- Đã thêm
+                    'delivery_delay_days_mean': customer.x_feat_delivery_delay_days_mean,
+                    'delivery_delay_days_max': customer.x_feat_delivery_delay_days_max, # <--- Đã thêm
+                    
+                    # 5. Items
+                    'num_items_sum': customer.x_feat_num_items_sum,
+                    'num_items_mean': customer.x_feat_num_items_mean, # <--- Đã thêm
+                    
+                    # 6. Categorical (Lấy giá trị chữ thô)
+                    'payment_type_last': customer.x_feat_payment_type_last or '',
+                    'customer_state_last': customer.x_feat_customer_state_last or '',
+                    'product_category_name_english_last': customer.x_feat_product_category_name_english_last or '',
+                }
+            else:
+                _logger.info(f"Khách hàng {customer.name} dùng dữ liệu TỰ TÍNH TOÁN (Real-time)")
+                
+                # Dùng các biến đã tính toán phía trên (logic cũ)
+                raw_data = {
+                    'payment_value_sum': payment_value_sum, 
+                    'payment_value_mean': payment_value_mean, 
+                    'payment_value_max': payment_value_max,
+                    'frequency': frequency, 
+                    'recency': recency,
+                    'review_score_mean': review_score_mean, 
+                    'review_score_min': review_score_min,
+                    'delivery_days_mean': delivery_days_mean, 
+                    'delivery_delay_days_mean': delivery_delay_days_mean,
+                    'num_items_sum': num_items_sum,
+                    'payment_type_last': payment_type_last, 
+                    'customer_state_last': customer_state_last,
+                    'product_category_name_english_last': category_name_last,
+                }
+            
             customer_data.append(raw_data)
             processed_customers.append(customer)
 

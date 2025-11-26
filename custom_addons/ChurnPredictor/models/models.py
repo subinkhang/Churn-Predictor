@@ -250,6 +250,26 @@ class ChurnPrediction(models.Model):
             reverse=True
         )
         
+        # Tiêu đề bảng
+        debug_msg = ["\n" + "▒" * 90]
+        debug_msg.append(f" 🕵️ [FULL CHECK] BẢNG PHÂN TÍCH TẤT CẢ {len(feature_impacts)} FEATURES")
+        debug_msg.append(f" Customer: {self.customer_name} | Probability: {self.probability:.2f}%")
+        debug_msg.append("▒" * 90)
+        debug_msg.append(f"{'RANK':<5} | {'FEATURE NAME':<40} | {'VALUE':<12} | {'SHAP IMPACT':<12} | {'EFFECT'}")
+        debug_msg.append("-" * 90)
+
+        # Duyệt qua TOÀN BỘ danh sách (không giới hạn top_n)
+        for i, (name, shap_val, feature_val) in enumerate(feature_impacts):
+            direction = "TĂNG 🔴" if shap_val > 0 else "GIẢM 🟢"
+            # Format dòng log kiểu bảng
+            line = f"#{i+1:02d}   | {name:<40} | {feature_val:>10.2f}   | {shap_val:>10.4f}   | {direction}"
+            debug_msg.append(line)
+            
+        debug_msg.append("=" * 90 + "\n")
+        
+        # In một lần duy nhất để log liền mạch, không bị đứt đoạn
+        _logger.info("\n".join(debug_msg))
+        
         # === SỬA LỖI TẠI ĐÂY ===
         # 1. Chuẩn bị một dictionary để dễ dàng truy cập giá trị của feature
         feature_values_dict = dict(zip(shap_data['feature_names'], shap_data['feature_values']))
@@ -257,9 +277,35 @@ class ChurnPrediction(models.Model):
         # 2. Tạo chuỗi mô tả các feature quan trọng nhất
         top_n = 7
         features_description = ""
+        count = 0
+        
         for name, shap_val, feature_val in feature_impacts[:top_n]:
+            if count >= top_n:
+                break
+                
+            # === LỌC BỎ BERT ĐỂ AI KHÔNG BỊ NHIỄU ===
+            if name.startswith('bert_') or name.startswith('tfidf_'):
+                continue
             direction = "tăng" if shap_val > 0 else "giảm"
             features_description += f"- {name} = {feature_val:.2f}: làm {direction} khả năng churn (ảnh hưởng: {shap_val:.4f})\n"
+            
+        # === [START] LOGGING ĐẸP ===
+        # Tạo khung viền để dễ nhìn thấy trong terminal
+        separator = "=" * 60
+        sub_separator = "-" * 60
+        
+        log_content = (
+            f"\n{separator}\n"
+            f" 🤖 [AI PROMPT PREPARATION] DỮ LIỆU SHAP ĐÃ ĐƠN GIẢN HÓA\n"
+            f"{sub_separator}\n"
+            f"Prediction ID: {self.id} | Customer: {self.customer_name}\n"
+            f"{sub_separator}\n"
+            f"{features_description}"  # Biến này đã có sẵn xuống dòng \n ở cuối mỗi dòng
+            f"{separator}\n"
+        )
+        
+        _logger.info(log_content)
+        # === [END] LOGGING ĐẸP ===
 
         prediction_summary = "Khách hàng có khả năng RỜI BỎ (Churn)" if self.prediction_result == 'churn' else "Khách hàng có khả năng Ở LẠI (No Churn)"
 
@@ -343,3 +389,67 @@ class ChurnPrediction(models.Model):
             raise UserError(_("The AI service returned an unexpected response format. Please check the logs for more details."))
 
         return True
+
+    def action_view_shap_logs(self):
+        """
+        Hàm in log đã được nâng cấp để LOẠI BỎ các feature 'bert_'
+        """
+        self.ensure_one()
+        _logger.info(">>> Bắt đầu in log SHAP cho Prediction ID: %d", self.id)
+
+        if not self.shap_data_json:
+            raise UserError(_("Không có dữ liệu SHAP để phân tích."))
+
+        try:
+            shap_data = json.loads(self.shap_data_json)
+        except json.JSONDecodeError:
+            raise UserError(_("Dữ liệu SHAP bị lỗi JSON."))
+
+        # 1. Sắp xếp dữ liệu
+        feature_impacts = sorted(
+            zip(shap_data['feature_names'], shap_data['shap_values'], shap_data['feature_values']),
+            key=lambda x: abs(x[1]),
+            reverse=True
+        )
+
+        # ==============================================================================
+        # IN BẢNG LOG (ĐÃ LỌC BERT)
+        # ==============================================================================
+        debug_msg = ["\n" + "▒" * 90]
+        debug_msg.append(f" 🕵️ [MANUAL CHECK] BẢNG PHÂN TÍCH SHAP LOGS (NO BERT)")
+        debug_msg.append(f" Customer: {self.customer_name} | Probability: {self.probability:.2f}%")
+        debug_msg.append("▒" * 90)
+        debug_msg.append(f"{'RANK':<5} | {'FEATURE NAME':<45} | {'VALUE':<12} | {'IMPACT':<10} | {'EFFECT'}")
+        debug_msg.append("-" * 90)
+
+        # Biến đếm thứ hạng hiển thị (vì i sẽ bị nhảy cóc khi skip bert)
+        display_rank = 1
+
+        for name, shap_val, feature_val in feature_impacts:
+            # === ĐOẠN QUAN TRỌNG: LỌC BỎ BERT ===
+            if name.startswith('bert_') or name.startswith('tfidf_'): 
+                continue 
+            # ====================================
+
+            direction = "TĂNG 🔴" if shap_val > 0 else "GIẢM 🟢"
+            
+            # Cắt ngắn tên nếu quá dài để bảng đẹp hơn
+            display_name = (name[:42] + '..') if len(name) > 42 else name
+            
+            line = f"#{display_rank:02d}   | {display_name:<45} | {feature_val:>10.2f}   | {shap_val:>10.4f}   | {direction}"
+            debug_msg.append(line)
+            display_rank += 1
+            
+        debug_msg.append("=" * 90 + "\n")
+        _logger.info("\n".join(debug_msg))
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Check Docker Logs',
+                'message': 'Đã in bảng phân tích (đã lọc bỏ Bert) ra terminal.',
+                'type': 'success',
+                'sticky': False,
+            }
+        }

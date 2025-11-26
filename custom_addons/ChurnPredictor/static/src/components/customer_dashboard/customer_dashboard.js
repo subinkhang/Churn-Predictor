@@ -105,6 +105,29 @@ export class CustomerDashboard extends Component {
             this.state.selectedEvent = data.timeline[0];
         }
     }
+
+    async onCheckDebugLogs() {
+        if (!this.state.latestPrediction || !this.state.latestPrediction.id) {
+            return;
+        }
+
+        try {
+            // Gọi hàm python 'action_view_shap_logs'
+            const action = await this.orm.call(
+                "churn.prediction",       // Model name
+                "action_view_shap_logs",  // Method name
+                [this.state.latestPrediction.id] // Arguments (Ids)
+            );
+
+            // Vì hàm Python trả về một action (display_notification),
+            // ta cần dùng actionService để thực thi nó.
+            if (action) {
+                await this.actionService.doAction(action);
+            }
+        } catch (e) {
+            console.error("Error fetching debug logs:", e);
+        }
+    }
     
     // XÓA HOÀN TOÀN HÀM renderChart() KHỎI ĐÂY.
 

@@ -42,8 +42,8 @@ services:
       # ./db_backups là thư mục trên máy local, /mnt/odoo_backups_for_restore là đường dẫn bên trong container Odoo
       - ./db_backups:/mnt/odoo_backups_for_restore
       # Tùy chọn: mount file cấu hình odoo.conf
-      # - ./config/odoo.conf:/etc/odoo/odoo.conf
-    command: -- # Chỉ chạy web server
+      - ./odoo.conf:/etc/odoo/odoo.conf
+    command: --config /etc/odoo/odoo.conf --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons
     networks:
       - odoo-network
 

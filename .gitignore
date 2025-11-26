@@ -1,0 +1,9 @@
+# Bỏ qua toàn bộ thư mục data_to_import
+data_to_import/
+
+# Ngoài ra, bạn cũng nên bỏ qua các thư mục cache của Python và Odoo
+__pycache__/
+*.pyc
+
+# Các file tài sản ML lớn thường không nên commit trực tiếp (nếu chúng rất lớn)
+# models/ml_assets/

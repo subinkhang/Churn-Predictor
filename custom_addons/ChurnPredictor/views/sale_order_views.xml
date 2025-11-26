@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_order_form_churn_inherit" model="ir.ui.view">
+        <field name="name">sale.order.form.churn.inherit</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <!-- Thêm các trường mới vào tab "Other Information" -->
+            <xpath expr="//page[@name='other_information']//group[@name='sales_person']" position="after">
+                <group string="Historical Churn Data" name="historical_churn_data">
+                    <field name="x_kaggle_id" readonly="1"/>
+                    <field name="x_churn_label" readonly="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
