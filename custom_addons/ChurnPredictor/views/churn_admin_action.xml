@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <data>
+        <!-- 1. Định nghĩa Client Action -->
+        <record id="action_owl_model_admin" model="ir.actions.client">
+            <field name="name">Model Control Center</field>
+            <field name="tag">owl.model_admin_dashboard</field> <!-- Tag này sẽ map với code JS -->
+        </record>
+
+        <!-- 2. Tạo Menu Item nằm trong Configuration hoặc ngang hàng Dashboard -->
+        <menuitem name="Model Admin" 
+                  id="menu_owl_model_admin" 
+                  parent="menu_owl_tutorial" 
+                  sequence="20" 
+                  action="action_owl_model_admin"/>
+    </data>
+</odoo>

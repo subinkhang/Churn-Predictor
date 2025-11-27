@@ -40,6 +40,7 @@ Long description of module's purpose
         'views/product_views.xml',
         'views/sale_order_views.xml',
         'views/rating_views.xml',
+        'views/churn_admin_action.xml',
     ],
     # only loaded in demonstration mode
     'demo': [
@@ -59,6 +60,8 @@ Long description of module's purpose
             'ChurnPredictor/static/src/components/profile_card/profile_card.xml',
             'ChurnPredictor/static/src/components/shap_explanation/shap_explanation.js',
             'ChurnPredictor/static/src/components/shap_explanation/shap_explanation.xml',
+            'ChurnPredictor/static/src/components/admin_dashboard/admin_dashboard.js',
+            'ChurnPredictor/static/src/components/admin_dashboard/admin_dashboard.xml',
         ],
     },
     

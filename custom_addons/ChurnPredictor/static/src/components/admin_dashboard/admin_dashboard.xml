@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="owl.AdminModelDashboard" owl="1">
+        <div class="vh-100 overflow-hidden bg-muted d-flex flex-column">
+            <!-- HEADER -->
+            <div class="bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
+                <h3 class="m-0 text-primary fw-bold">
+                    <i class="fa fa-cogs me-2"/>Admin Model Control
+                </h3>
+                <button class="btn btn-primary" t-on-click="createNewModel">
+                    <i class="fa fa-plus me-2"/>New Version
+                </button>
+            </div>
+
+            <!-- BODY CONTENT -->
+            <div class="row g-0 h-100 overflow-hidden">
+                
+                <!-- SIDEBAR: LIST MODELS -->
+                <div class="col-lg-3 border-end bg-white h-100 overflow-auto">
+                    <div class="list-group list-group-flush">
+                        <t t-foreach="state.modelsList" t-as="model" t-key="model.id">
+                            <a href="#" 
+                               class="list-group-item list-group-item-action py-3"
+                               t-att-class="state.selectedModel and state.selectedModel.id == model.id ? 'active' : ''"
+                               t-on-click="() => this.selectModel(model)">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1" t-esc="model.name"/>
+                                    <small t-if="model.state == 'active'" class="badge bg-success">Active</small>
+                                    <small t-elif="model.state == 'training'" class="badge bg-warning text-dark">Training</small>
+                                    <small t-else="" class="badge bg-secondary" t-esc="model.state"/>
+                                </div>
+                                <p class="mb-1 small">Acc: <t t-esc="model.accuracy_score || 'N/A'"/></p>
+                                <small t-esc="model.create_date"/>
+                            </a>
+                        </t>
+                        <div t-if="state.modelsList.length === 0" class="p-4 text-center text-muted">
+                            No models found. Create one!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MAIN PANEL: DETAIL -->
+                <div class="col-lg-9 h-100 overflow-auto bg-light p-4">
+                    <t t-if="state.selectedModel">
+                        
+                        <!-- Toolbar -->
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2 class="fw-bold m-0" t-esc="state.selectedModel.name"/>
+                            <div>
+                                <button t-if="!state.isEditMode" class="btn btn-outline-secondary me-2" t-on-click="() => state.isEditMode = true">
+                                    <i class="fa fa-edit me-1"/>Edit Config
+                                </button>
+                                <button t-if="state.isEditMode" class="btn btn-success me-2" t-on-click="saveModelParams">
+                                    <i class="fa fa-save me-1"/>Save
+                                </button>
+                                
+                                <button t-if="state.selectedModel.state == 'draft' || state.selectedModel.state == 'done'" 
+                                        class="btn btn-warning fw-bold text-dark" 
+                                        t-on-click="triggerRetrain">
+                                    <i class="fa fa-rocket me-1"/>Retrain Model
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Config Cards -->
+                        <div class="row">
+                            <!-- Card 1: Parameters -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card shadow-sm border-0">
+                                    <div class="card-header bg-white fw-bold">Hyperparameters</div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small">Learning Rate</label>
+                                            <input type="number" step="0.01" class="form-control" 
+                                                   t-model="state.selectedModel.learning_rate" 
+                                                   t-att-disabled="!state.isEditMode"/>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small">N Estimators</label>
+                                            <input type="number" class="form-control" 
+                                                   t-model="state.selectedModel.n_estimators" 
+                                                   t-att-disabled="!state.isEditMode"/>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small">Max Depth</label>
+                                            <input type="number" class="form-control" 
+                                                   t-model="state.selectedModel.max_depth" 
+                                                   t-att-disabled="!state.isEditMode"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card 2: Training Logs (Terminal Style) -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card shadow-sm border-0 h-100">
+                                    <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between">
+                                        <span>Training Logs</span>
+                                        <i class="fa fa-terminal"/>
+                                    </div>
+                                    <div class="card-body bg-dark p-0">
+                                        <textarea class="form-control bg-dark text-success font-monospace border-0 h-100" 
+                                                  readonly="1" 
+                                                  t-model="state.selectedModel.training_log"
+                                                  style="resize: none; font-size: 0.85rem;"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 3: Results (Placeholder for Phase later) -->
+                        <div class="card shadow-sm border-0 mb-4" t-if="state.selectedModel.state == 'done' || state.selectedModel.state == 'active'">
+                            <div class="card-header bg-white fw-bold">Evaluation Metrics</div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-6 border-end">
+                                        <h1 class="text-primary fw-bold" t-esc="state.selectedModel.accuracy_score"/>
+                                        <small class="text-muted text-uppercase">Accuracy</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <h1 class="text-info fw-bold" t-esc="state.selectedModel.f1_score || '0.85'"/> <!-- Mock data if null -->
+                                        <small class="text-muted text-uppercase">F1 Score</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </t>
+                    <t t-else="">
+                        <div class="h-100 d-flex align-items-center justify-content-center text-muted">
+                            <div class="text-center">
+                                <i class="fa fa-cube fa-4x mb-3"/>
+                                <h4>Select a model version to view details</h4>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>
