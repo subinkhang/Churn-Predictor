@@ -18,6 +18,7 @@ export class AdminModelDashboard extends Component {
 
         this.orm = useService("orm");
         this.notification = useService("notification");
+        this.state.isUploadingData = false;
 
         onWillStart(async () => {
             await this.loadModelsList();
@@ -39,6 +40,43 @@ export class AdminModelDashboard extends Component {
         if (models.length > 0 && !this.state.selectedModel) {
             this.selectModel(models[0]);
         }
+    }
+
+    async onUploadData(ev) {
+        const file = ev.target.files[0];
+        if (!file) return;
+
+        this.state.isUploadingData = true;
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+            try {
+                // Lấy phần data base64 (cắt bỏ header 'data:text/csv;base64,...')
+                const base64Data = e.target.result.split(',')[1];
+                
+                // Gọi Python để lưu file
+                const result = await this.orm.call(
+                    'churn.model.version', 
+                    'action_save_uploaded_data', 
+                    [file.name, base64Data]
+                );
+
+                if (result.status === 'success') {
+                    this.notification.add(`Data saved to: upload_data/${file.name}`, { type: "success" });
+                } else {
+                    this.notification.add("Save failed: " + result.message, { type: "danger" });
+                }
+
+            } catch (error) {
+                console.error(error);
+                this.notification.add("Upload Error", { type: "danger" });
+            } finally {
+                this.state.isUploadingData = false;
+                ev.target.value = ''; // Reset input để chọn lại file cũ được
+            }
+        };
+
+        reader.readAsDataURL(file);
     }
 
     // --- LOGIC TƯƠNG TÁC UI ---

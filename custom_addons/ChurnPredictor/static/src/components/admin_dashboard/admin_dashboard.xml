@@ -7,9 +7,26 @@
                 <h3 class="m-0 text-primary fw-bold">
                     <i class="fa fa-cogs me-2"/>Admin Model Control
                 </h3>
-                <button class="btn btn-primary" t-on-click="createNewModel">
-                    <i class="fa fa-plus me-2"/>New Version
-                </button>
+
+                <div class="d-flex gap-2">
+                    <!-- 1. Input ẩn -->
+                    <input type="file" id="uploadDataInput" class="d-none" accept=".csv" t-on-change="onUploadData"/>
+                    
+                    <!-- 2. Nút Upload Data (Label trỏ vào input) -->
+                    <label for="uploadDataInput" class="btn btn-outline-dark cursor-pointer">
+                        <t t-if="state.isUploadingData">
+                            <i class="fa fa-spinner fa-spin me-2"/>Uploading...
+                        </t>
+                        <t t-else="">
+                            <i class="fa fa-upload me-2"/>Upload New Data
+                        </t>
+                    </label>
+
+                    <!-- 3. Nút New Version cũ -->
+                    <button class="btn btn-primary" t-on-click="createNewModel">
+                        <i class="fa fa-plus me-2"/>New Version
+                    </button>
+                </div>
             </div>
 
             <!-- BODY CONTENT -->
@@ -18,7 +35,7 @@
                 <!-- SIDEBAR: LIST MODELS -->
                 <div class="col-lg-3 border-end bg-white h-100 overflow-auto">
                     <div class="list-group list-group-flush">
-                        <t t-foreach="state.modelsList" t-as="model" t-key="model.id">
+                        <t t-foreach="state.modelsList" t-as="model" t-key="model.id"> 
                             <a href="#" 
                                class="list-group-item list-group-item-action py-3"
                                t-att-class="state.selectedModel and state.selectedModel.id == model.id ? 'active' : ''"

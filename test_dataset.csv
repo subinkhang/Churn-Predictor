@@ -1,0 +1,11 @@
+x_unique_id,payment_value_sum,payment_value_mean,payment_value_max,payment_value_min,num_items_sum,num_items_mean,review_score_mean,review_score_min,review_score_std,delivery_days_mean,delivery_days_max,delivery_delay_days_mean,delivery_delay_days_max,customer_state_last,product_category_name_english_last,payment_type_last,churn_last,frequency,recency
+0000366f3b9a7992bf8c76cfdf3221e2,141.9,141.9,141.9,141.9,1,1,5,5,0,6,6,-5,-5,SP,bed_bath_table,credit_card,0,1,112
+0000b849f77a49e4a4ce2b2a4ca5be3f,27.19,27.19,27.19,27.19,1,1,4,4,0,3,3,-5,-5,SP,health_beauty,credit_card,0,1,115
+0000f46a3911fa3c0805444483337064,86.22,86.22,86.22,86.22,1,1,3,3,0,25,25,-2,-2,SC,stationery,credit_card,1,1,537
+0000f6ccb0745a6a4b88665a16c9f078,43.62,43.62,43.62,43.62,1,1,4,4,0,20,20,-12,-12,PA,telephony,credit_card,1,1,321
+0004aac84e0df4da2b147fca70cf8255,196.89,196.89,196.89,196.89,1,1,5,5,0,13,13,-8,-8,SP,telephony,credit_card,1,1,288
+0004bd2a26a76fe21f786e4fbd80607f,166.98,166.98,166.98,166.98,1,1,4,4,0,1,1,-12,-12,SP,garden_tools,credit_card,0,1,146
+00050ab1314c0e55a6ca13cf7181fecf,35.38,35.38,35.38,35.38,1,1,4,4,0,6,6,-12,-12,SP,telephony,boleto,0,1,132
+00053a61a98854899e70ed204dd4bafe,838.36,838.36,838.36,838.36,2,2,1,1,0,16,16,-10,-10,PR,sports_leisure,credit_card,1,1,183
+0005e1862207bf6ccc02e4228effd9a0,150.12,150.12,150.12,150.12,1,1,4,4,0,4,4,-28,-28,RJ,fashion_bags_accessories,credit_card,1,1,543
+0005ef4cd20d2893f0d9fbd94d3c0d97,129.76,129.76,129.76,129.76,1,1,1,1,0,53,53,31,31,MA,sports_leisure,credit_card,1,1,170

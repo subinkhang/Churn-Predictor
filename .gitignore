@@ -1,5 +1,11 @@
 # Bỏ qua toàn bộ thư mục data_to_import
 data_to_import/
+upload_data/
+ml_training/
+ml_assets/
+custom_addons/ChurnPredictor/models/shap_plot_0.html
+custom_addons/ChurnPredictor/models/shap_plot_1.html
+custom_addons/ChurnPredictor/models/shap_plot_2.html
 
 # Ngoài ra, bạn cũng nên bỏ qua các thư mục cache của Python và Odoo
 __pycache__/
