@@ -1,0 +1,14 @@
+{
+    "id": "subinkhang/churn-predictor-4",
+    "title": "Churn Predictor 4",
+    "code_file": "churn-predictor-4.ipynb",
+    "language": "python",
+    "kernel_type": "notebook",
+    "is_private": "false",
+    "enable_gpu": "true",
+    "enable_internet": "true",
+    "dataset_sources": [
+        "subinkhang/olist-merged-dataset-2016-2017"
+    ],
+    "kernel_sources": []
+}

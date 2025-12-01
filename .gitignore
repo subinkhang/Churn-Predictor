@@ -7,6 +7,8 @@ custom_addons/ChurnPredictor/models/shap_plot_0.html
 custom_addons/ChurnPredictor/models/shap_plot_1.html
 custom_addons/ChurnPredictor/models/shap_plot_2.html
 
+custom_addons/ChurnPredictor/config/kaggle.json
+
 # Ngoài ra, bạn cũng nên bỏ qua các thư mục cache của Python và Odoo
 __pycache__/
 *.pyc
