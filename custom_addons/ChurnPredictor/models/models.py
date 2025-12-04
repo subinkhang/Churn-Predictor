@@ -207,16 +207,14 @@ class ChurnPrediction(models.Model):
             'high_risk_percentage': round(high_risk_percentage, 1), # Dữ liệu cho progress bar
         }
         
-        
     def action_generate_ai_explanation(self):
         """
-        Được gọi bởi nút "Explain with AI".
-        Hàm này lấy dữ liệu SHAP thô, gửi đến API của Google AI và lưu lại lời giải thích.
+        [UPDATED v3] Được gọi bởi nút "Explain with AI".
+        Nâng cấp: Bổ sung Context (Category & FULL Timeline History).
         """
         self.ensure_one()
         
-        # <<< DEBUG LOG 1: Kiểm tra xem hàm có được gọi không >>>
-        _logger.info(">>> Bắt đầu action_generate_ai_explanation cho prediction ID: %d", self.id)
+        _logger.info(">>> [AI XAI] Bắt đầu action_generate_ai_explanation cho prediction ID: %d", self.id)
 
         # --- BƯỚC 1: LẤY CẤU HÌNH ---
         config_param = self.env['ir.config_parameter'].sudo()
@@ -224,25 +222,16 @@ class ChurnPrediction(models.Model):
         api_endpoint = config_param.get_param('churn_predictor.google_ai_endpoint')
 
         if not api_key or not api_endpoint:
-            raise UserError(_("AI Service is not configured. Please contact your system administrator to set the API Key and Endpoint in the system parameters."))
+            raise UserError(_("AI Service is not configured."))
         
-        # <<< DEBUG LOG 2: Kiểm tra nội dung của trường shap_data_json >>>
-        _logger.info("Kiểm tra dữ liệu SHAP...")
-        _logger.info("Nội dung trường shap_data_json: %s", self.shap_data_json)
-
         if not self.shap_data_json:
-            _logger.warning("Lỗi: Dữ liệu SHAP (shap_data_json) rỗng hoặc không hợp lệ.")
-            raise UserError(_("No SHAP data available to generate an explanation. Please try running the prediction again for this customer."))
+            raise UserError(_("No SHAP data available. Please run prediction first."))
 
-        # --- BƯỚC 2: CHUẨN BỊ DỮ LIỆU VÀ PROMPT ---
+        # --- BƯỚC 2: CHUẨN BỊ DỮ LIỆU SHAP ---
         try:
             shap_data = json.loads(self.shap_data_json)
-            # <<< DEBUG LOG 3: Dữ liệu SHAP sau khi được parse >>>
-            _logger.info("Phân tích JSON từ shap_data_json thành công.")
-            _logger.debug("Dữ liệu SHAP đã được parse: %s", shap_data)
         except json.JSONDecodeError:
-            _logger.error("Lỗi phân tích JSON từ trường shap_data_json.")
-            raise UserError(_("Could not read the SHAP data. It might be corrupted."))
+            raise UserError(_("Could not read the SHAP data."))
 
         feature_impacts = sorted(
             zip(shap_data['feature_names'], shap_data['shap_values'], shap_data['feature_values']),
@@ -250,104 +239,114 @@ class ChurnPrediction(models.Model):
             reverse=True
         )
         
-        # Tiêu đề bảng
-        debug_msg = ["\n" + "▒" * 90]
-        debug_msg.append(f" 🕵️ [FULL CHECK] BẢNG PHÂN TÍCH TẤT CẢ {len(feature_impacts)} FEATURES")
-        debug_msg.append(f" Customer: {self.customer_name} | Probability: {self.probability:.2f}%")
-        debug_msg.append("▒" * 90)
-        debug_msg.append(f"{'RANK':<5} | {'FEATURE NAME':<40} | {'VALUE':<12} | {'SHAP IMPACT':<12} | {'EFFECT'}")
-        debug_msg.append("-" * 90)
+        # --- [NEW] BƯỚC 2.1: LẤY DỮ LIỆU BỐI CẢNH (CONTEXT DATA) ---
+        _logger.info(">>> Đang thu thập dữ liệu bối cảnh khách hàng...")
 
-        # Duyệt qua TOÀN BỘ danh sách (không giới hạn top_n)
-        for i, (name, shap_val, feature_val) in enumerate(feature_impacts):
-            direction = "TĂNG 🔴" if shap_val > 0 else "GIẢM 🟢"
-            # Format dòng log kiểu bảng
-            line = f"#{i+1:02d}   | {name:<40} | {feature_val:>10.2f}   | {shap_val:>10.4f}   | {direction}"
-            debug_msg.append(line)
+        # 1. Lấy Product Category
+        raw_category = self.customer_id.x_feat_product_category_name_english_last or "Unknown"
+        customer_category = raw_category.replace('_', ' ').title()
+
+        # 2. Lấy Lịch sử tương tác (TIMELINE HISTORY)
+        history_log = ""
+        try:
+            # Gọi hàm lấy timeline từ res.partner
+            timeline_data = self.customer_id.get_interaction_timeline_data(self.customer_id.id)
+            timeline_list = timeline_data.get('timeline', [])
             
-        debug_msg.append("=" * 90 + "\n")
-        
-        # In một lần duy nhất để log liền mạch, không bị đứt đoạn
-        _logger.info("\n".join(debug_msg))
-        
-        # === SỬA LỖI TẠI ĐÂY ===
-        # 1. Chuẩn bị một dictionary để dễ dàng truy cập giá trị của feature
-        feature_values_dict = dict(zip(shap_data['feature_names'], shap_data['feature_values']))
+            if timeline_list:
+                # Lấy tối đa 10 sự kiện gần nhất để tránh quá tải Token
+                # timeline_list đã được sort ngược (mới nhất đầu tiên) từ hàm gốc
+                recent_events = timeline_list[:10] 
+                
+                log_lines = []
+                for event in recent_events:
+                    # Format: "- 2023-12-01 [Email]: Tiêu đề - Nội dung ngắn"
+                    # Cắt ngắn description nếu quá dài (> 100 ký tự) để tiết kiệm token
+                    desc = event['description']
+                    if len(desc) > 100:
+                        desc = desc[:100] + "..."
+                        
+                    line = f"- {event['date']} [{event['channel']}]: {event['title']} - {desc}"
+                    log_lines.append(line)
+                
+                history_log = "\n".join(log_lines)
+                _logger.info(">>> Đã lấy %d sự kiện lịch sử gần nhất.", len(recent_events))
+            else:
+                history_log = "Chưa có lịch sử tương tác nào."
+                _logger.info(">>> Khách hàng chưa có tương tác nào trong timeline.")
+                
+        except Exception as e:
+            _logger.warning(">>> Lỗi khi lấy lịch sử tương tác: %s", str(e))
+            history_log = "Không thể truy xuất lịch sử tương tác."
 
-        # 2. Tạo chuỗi mô tả các feature quan trọng nhất
+        # --- BƯỚC 2.2: XỬ LÝ TEXT SHAP ---
         top_n = 7
         features_description = ""
         count = 0
-        
         for name, shap_val, feature_val in feature_impacts[:top_n]:
-            if count >= top_n:
-                break
-                
-            # === LỌC BỎ BERT ĐỂ AI KHÔNG BỊ NHIỄU ===
-            if name.startswith('bert_') or name.startswith('tfidf_'):
-                continue
-            direction = "tăng" if shap_val > 0 else "giảm"
-            features_description += f"- {name} = {feature_val:.2f}: làm {direction} khả năng churn (ảnh hưởng: {shap_val:.4f})\n"
+            if count >= top_n: break
+            if name.startswith('bert_') or name.startswith('tfidf_'): continue
             
-        # === [START] LOGGING ĐẸP ===
-        # Tạo khung viền để dễ nhìn thấy trong terminal
-        separator = "=" * 60
-        sub_separator = "-" * 60
-        
-        log_content = (
-            f"\n{separator}\n"
-            f" 🤖 [AI PROMPT PREPARATION] DỮ LIỆU SHAP ĐÃ ĐƠN GIẢN HÓA\n"
-            f"{sub_separator}\n"
-            f"Prediction ID: {self.id} | Customer: {self.customer_name}\n"
-            f"{sub_separator}\n"
-            f"{features_description}"  # Biến này đã có sẵn xuống dòng \n ở cuối mỗi dòng
-            f"{separator}\n"
-        )
-        
-        _logger.info(log_content)
-        # === [END] LOGGING ĐẸP ===
+            direction = "tăng" if shap_val > 0 else "giảm"
+            features_description += f"- {name} = {feature_val:.2f}: làm {direction} nguy cơ churn (độ mạnh: {shap_val:.4f})\n"
+            count += 1
 
-        prediction_summary = "Khách hàng có khả năng RỜI BỎ (Churn)" if self.prediction_result == 'churn' else "Khách hàng có khả năng Ở LẠI (No Churn)"
+        prediction_summary = "RỜI BỎ (Churn)" if self.prediction_result == 'churn' else "Ở LẠI (No Churn)"
 
-        # 3. Xây dựng Prompt chi tiết và an toàn
+        # --- BƯỚC 3: XÂY DỰNG PROMPT NÂNG CẤP ---
+        # Đã cập nhật phần Timeline History
+        
         prompt = f"""
-        **Nhiệm vụ:** TRỰC TIẾP tạo ra một bản tóm tắt phân tích churn bằng tiếng Việt, sử dụng cú pháp Markdown. KHÔNG thêm bất kỳ lời dẫn hay câu nối nào.
+        **Vai trò:** Bạn là chuyên gia phân tích trải nghiệm khách hàng (CX Analyst). Hãy viết báo cáo phân tích rủi ro bằng tiếng Việt (Markdown).
 
-        **Bối cảnh:**
-        - Kết quả: {prediction_summary}, xác suất {self.probability:.2f}%.
-        - Dữ liệu ảnh hưởng:
+        **1. Hồ sơ Khách hàng (Context):**
+        - **Ngành hàng quan tâm:** {customer_category}
+        - **Dòng thời gian tương tác (Mới nhất trước):**
+        {history_log}
+
+        **2. Kết quả Dự báo AI:**
+        - **Dự đoán:** {prediction_summary}
+        - **Xác suất:** {self.probability:.2f}%
+        
+        **3. Phân tích Dữ liệu Kỹ thuật (SHAP Values):**
         {features_description}
+
         ---
-        **Định dạng đầu ra BẮT BUỘC:**
+        **Yêu cầu đầu ra (Output Format):**
+        
+        **Kết luận:** [Đánh giá tổng quan về tình trạng khách hàng dựa trên cả Lịch sử tương tác và Chỉ số dự báo].
 
-        **Kết luận:** Khách hàng này có **nguy cơ rời bỏ cao ({self.probability:.2f}%)**.
+        **🔴 Rủi ro & Vấn đề:**
+        - **[Tên vấn đề]:** [Giải thích ngắn gọn].
+        
+        **🟢 Điểm tích cực:**
+        - **[Tên điểm tốt]:** [Giải thích ngắn gọn].
 
-        **🔴 Yếu tố tiêu cực:**
-        - **[Tên yếu tố 1] ([Giá trị]):** [Giải thích TỐI ĐA MỘT CÂU].
-        - **[Tên yếu tố 2] ([Giá trị]):** [Giải thích TỐI ĐA MỘT CÂU].
+        **💡 Hành động đề xuất:**
+        - [Dựa trên lịch sử tương tác (ví dụ: nếu có phàn nàn/trả hàng) và ngành hàng {customer_category}, hãy đề xuất 1 hành động cụ thể cho Sales/CSKH để giữ chân khách].
 
-        **🟢 Yếu tố tích cực:**
-        - **[Tên yếu tố 1] ([Giá trị]):** [Giải thích TỐI ĐA MỘT CÂU].
-
-        **Ràng buộc:**
-        - Chỉ sử dụng các heading đã cho: "Kết luận:", "🔴 Yếu tố tiêu cực:", "🟢 Yếu tố tích cực:".
-        - Mỗi gạch đầu dòng chỉ được phép dài TỐI ĐA MỘT CÂU.
-        - KHÔNG thêm các phỏng đoán hoặc bình luận dài dòng không có trong dữ liệu.
+        **Lưu ý quan trọng:** 
+        - Hãy đọc kỹ "Dòng thời gian tương tác". Nếu thấy khách hàng có phàn nàn, khiếu nại hoặc trả hàng gần đây, hãy coi đó là nguyên nhân chính dẫn đến Churn và cảnh báo ngay.
         """
-        # <<< DEBUG LOG 4: Prompt sẽ được gửi đi >>>
-        _logger.info("Đã xây dựng prompt cho AI.")
-        _logger.debug("Prompt (150 ký tự đầu): %s...", prompt[:150].replace('\n', ' '))
-
-
-        # --- BƯỚC 3: GỌI API ---
+        
+        # --- BƯỚC 4: GỌI API (Cấu hình Max Token & Safety) ---
         headers = {'Content-Type': 'application/json'}
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048}
+            "generationConfig": {
+                "temperature": 0.7, 
+                "maxOutputTokens": 4096 
+            },
+            "safetySettings": [
+                { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+                { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+                { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+                { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+            ]
         }
         
-        _logger.info("Chuẩn bị gửi yêu cầu tới AI endpoint: %s", api_endpoint)
         try:
+            # _logger.info(">>> Prompt gửi đi (Debug): %s", prompt) # Uncomment nếu muốn xem prompt
             response = requests.post(
                 f"{api_endpoint}?key={api_key}", 
                 headers=headers, 
@@ -355,38 +354,41 @@ class ChurnPrediction(models.Model):
                 timeout=30
             )
             response.raise_for_status()
-
-            # <<< DEBUG LOG 5: API gọi thành công >>>
-            _logger.info("Yêu cầu API thành công! Status Code: %s", response.status_code)
             
             response_data = response.json()
             
-            # Trích xuất nội dung Markdown thô từ AI
-            raw_explanation_md = response_data['candidates'][0]['content']['parts'][0]['text']
-            _logger.info("Đã trích xuất lời giải thích (Markdown) thành công.")
+            # Xử lý kết quả trả về (bao gồm cả trường hợp MAX_TOKENS)
+            if 'candidates' in response_data and response_data['candidates']:
+                candidate = response_data['candidates'][0]
+                finish_reason = candidate.get('finishReason')
+                
+                valid_reasons = ['STOP', 'MAX_TOKENS']
+                if finish_reason and finish_reason not in valid_reasons:
+                    raise UserError(_("AI refused to generate explanation. Reason: %s", finish_reason))
+                
+                if 'content' in candidate and 'parts' in candidate['content']:
+                    raw_explanation_md = candidate['content']['parts'][0]['text']
+                else:
+                    raise UserError(_("AI response structure is invalid."))
+            else:
+                raise UserError(_("AI returned an empty response."))
 
-            # === BƯỚC CHUYỂN ĐỔI QUAN TRỌNG ===
-            # Chuyển đổi chuỗi Markdown sang HTML
             html_explanation = markdown2.markdown(raw_explanation_md)
-            _logger.info("Đã chuyển đổi Markdown sang HTML.")
+            
+            if finish_reason == 'MAX_TOKENS':
+                html_explanation += "<p><em>(Kết quả bị cắt ngắn do giới hạn độ dài.)</em></p>"
 
-            # --- BƯỚC 4: LƯU KẾT QUẢ (DẠNG HTML) ---
             self.write({
-                'shap_ai_explanation': html_explanation # <<< Lưu chuỗi HTML
+                'shap_ai_explanation': html_explanation
             })
-            _logger.info("Đã lưu lời giải thích (HTML) của AI vào prediction ID: %d.", self.id)
+            _logger.info(">>> Đã lưu kết quả XAI (bao gồm lịch sử tương tác) thành công.")
 
-        except requests.exceptions.Timeout:
-            _logger.error("Lỗi: Yêu cầu tới AI service bị timeout.")
-            raise UserError(_("The request to the AI service timed out. Please try again later."))
         except requests.exceptions.RequestException as e:
-            _logger.error("Lỗi yêu cầu API: %s", e)
-            _logger.error("Nội dung phản hồi (nếu có): %s", response.text if 'response' in locals() else 'Không có phản hồi')
-            raise UserError(_("An error occurred while communicating with the AI service: %s", str(e)))
-        except (KeyError, IndexError) as e:
-            _logger.error("Lỗi phân tích phản hồi từ AI: %s. Phản hồi không có định dạng như mong đợi.", e)
-            _logger.error("Toàn bộ phản hồi từ AI: %s", response_data)
-            raise UserError(_("The AI service returned an unexpected response format. Please check the logs for more details."))
+            _logger.error("Lỗi kết nối API: %s", e)
+            raise UserError(_("Connection Error: %s", str(e)))
+        except Exception as e:
+            _logger.error("Lỗi hệ thống: %s", e)
+            raise UserError(_("System Error: %s", str(e)))
 
         return True
 
