@@ -15,3 +15,4 @@ sklearn-pandas==2.2.0
 xgboost==3.0.5
 matplotlib==3.10.3
 markdown2
+kaggle

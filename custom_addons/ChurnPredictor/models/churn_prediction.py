@@ -22,38 +22,58 @@ _model_columns = None
 _explainer = None
 
 def _load_model_and_columns():
-    """
-    Hàm helper để load model và danh sách cột.
-    Sử dụng biến toàn cục để đảm bảo chỉ load một lần duy nhất khi server Odoo khởi động.
-    """
     global _model, _model_columns, _explainer
-    if _model is not None:
-        return
+    
+    # if _model is not None: return # Bỏ cache để luôn load mới nhất
 
     try:
-        # Lấy đường dẫn an toàn đến các file trong module
-        model_path = get_module_resource('churn_predictor', 'data', 'churn_model.joblib')
-        columns_path = get_module_resource('churn_predictor', 'data', 'model_columns.pkl')
+        # 1. Tìm folder mới nhất
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        ml_assets_dir = os.path.join(current_dir, 'ml_assets')
+        
+        subfolders = [f for f in os.listdir(ml_assets_dir) if os.path.isdir(os.path.join(ml_assets_dir, f))]
+        
+        if subfolders:
+            latest_version = sorted(subfolders)[-1]
+            model_path = os.path.join(ml_assets_dir, latest_version, 'churn_model.joblib')
+            _logger.info(f"Loading Model Version: {latest_version}")
+        else:
+            # Fallback
+            model_path = os.path.join(ml_assets_dir, 'churn_model.joblib')
 
-        if not os.path.exists(model_path) or not os.path.exists(columns_path):
-            _logger.error("Model files (churn_model.joblib, model_columns.pkl) not found in 'data' directory!")
+        if not os.path.exists(model_path):
+            _logger.error(f"Model file not found: {model_path}")
             return
 
-        _logger.info("Loading churn prediction model and columns...")
+        # 2. Load Model
         _model = joblib.load(model_path)
-        with open(columns_path, 'rb') as f:
-            _model_columns = pickle.load(f)
         
-        # Khởi tạo SHAP explainer ngay sau khi load model
+        # 3. [FIX] Lấy danh sách cột trực tiếp từ Model
+        # XGBoost lưu feature names trong thuộc tính feature_names_in_ (sklearn API)
+        if hasattr(_model, 'feature_names_in_'):
+            _model_columns = _model.feature_names_in_.tolist()
+            _logger.info(f"Loaded {_len(_model_columns)} features directly from model.")
+        else:
+            # Fallback nếu model không có thuộc tính này (hiếm gặp với xgboost mới)
+            _logger.warning("Model does not have feature_names_in_. Trying to load from pkl...")
+            columns_path = os.path.join(os.path.dirname(model_path), 'model_columns.pkl')
+            if not os.path.exists(columns_path):
+                 columns_path = os.path.join(ml_assets_dir, 'model_columns.pkl')
+            
+            if os.path.exists(columns_path):
+                with open(columns_path, 'rb') as f:
+                    _model_columns = pickle.load(f)
+            else:
+                _logger.error("Cannot find feature names source!")
+                return
+
+        # 4. Init SHAP
         _explainer = shap.TreeExplainer(_model)
-        
-        _logger.info("Churn prediction model, columns, and SHAP explainer loaded successfully.")
+        _logger.info("Model & Explainer loaded successfully.")
 
     except Exception as e:
-        _logger.error(f"Error loading prediction model: {e}", exc_info=True)
+        _logger.error(f"Error loading model: {e}", exc_info=True)
         _model = None
-        _model_columns = None
-        _explainer = None
 
 class ChurnPrediction(models.Model):
     _inherit = 'churn.prediction' # Kế thừa từ model bạn đã định nghĩa

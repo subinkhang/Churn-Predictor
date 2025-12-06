@@ -1,6 +1,0 @@
-{
-    "run_id": "2025-12-01 14:37:51",
-    "triggered_by": "Local Script (Odoo)",
-    "new_file_name": "olist_merged_2018_month_01.csv",
-    "action": "append_and_retrain"
-}

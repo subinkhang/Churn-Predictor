@@ -4,28 +4,24 @@
         <div class="vh-100 overflow-hidden bg-muted d-flex flex-column">
             <!-- HEADER -->
             <div class="bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
-                <h3 class="m-0 text-primary fw-bold">
-                    <i class="fa fa-cogs me-2"/>Admin Model Control
-                </h3>
+                <h3 class="m-0 text-primary fw-bold">...</h3>
 
                 <div class="d-flex gap-2">
                     <!-- 1. Input ẩn -->
                     <input type="file" id="uploadDataInput" class="d-none" accept=".csv" t-on-change="onUploadData"/>
                     
-                    <!-- 2. Nút Upload Data (Label trỏ vào input) -->
-                    <label for="uploadDataInput" class="btn btn-outline-dark cursor-pointer">
+                    <!-- 2. Nút Upload Data -->
+                    <!-- Chỉ hiện khi đã chọn 1 model (để biết lưu vào đâu) -->
+                    <label t-if="state.selectedModel" for="uploadDataInput" class="btn btn-outline-dark cursor-pointer">
                         <t t-if="state.isUploadingData">
                             <i class="fa fa-spinner fa-spin me-2"/>Uploading...
                         </t>
                         <t t-else="">
-                            <i class="fa fa-upload me-2"/>Upload New Data
+                            <i class="fa fa-upload me-2"/>Upload Data
                         </t>
                     </label>
-
-                    <!-- 3. Nút New Version cũ -->
-                    <button class="btn btn-primary" t-on-click="createNewModel">
-                        <i class="fa fa-plus me-2"/>New Version
-                    </button>
+                    
+                    <button class="btn btn-primary" t-on-click="createNewModel">New Version</button>
                 </div>
             </div>
 
@@ -36,22 +32,44 @@
                 <div class="col-lg-3 border-end bg-white h-100 overflow-auto">
                     <div class="list-group list-group-flush">
                         <t t-foreach="state.modelsList" t-as="model" t-key="model.id"> 
-                            <a href="#" 
-                               class="list-group-item list-group-item-action py-3"
-                               t-att-class="state.selectedModel and state.selectedModel.id == model.id ? 'active' : ''"
-                               t-on-click="() => this.selectModel(model)">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h5 class="mb-1" t-esc="model.name"/>
-                                    <small t-if="model.state == 'active'" class="badge bg-success">Active</small>
-                                    <small t-elif="model.state == 'training'" class="badge bg-warning text-dark">Training</small>
-                                    <small t-else="" class="badge bg-secondary" t-esc="model.state"/>
+                            <!-- SỬA: Dùng div thay vì a để tránh reload trang -->
+                            <div class="list-group-item list-group-item-action py-3 d-flex justify-content-between align-items-start"
+                                style="cursor: pointer;"
+                                t-att-class="state.selectedModel and state.selectedModel.id == model.id ? 'active' : ''"
+                                t-on-click="() => this.selectModel(model)">
+                                
+                                <!-- Nội dung bên trái -->
+                                <div class="w-100">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1 text-truncate" style="max-width: 180px;" t-esc="model.name"/>
+                                        
+                                        <!-- Badges trạng thái -->
+                                        <span t-if="model.state == 'active'" class="badge bg-success rounded-pill">Active</span>
+                                        <span t-elif="model.state == 'training'" class="badge bg-warning text-dark rounded-pill">Training</span>
+                                        <span t-else="" class="badge bg-secondary rounded-pill" t-esc="model.state"/>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-end mt-1">
+                                        <div>
+                                            <p class="mb-0 small opacity-75">Acc: <t t-esc="model.accuracy_score ? model.accuracy_score.toFixed(4) : 'N/A'"/></p>
+                                            <small class="opacity-50" style="font-size: 0.75rem;" t-esc="model.create_date"/>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p class="mb-1 small">Acc: <t t-esc="model.accuracy_score || 'N/A'"/></p>
-                                <small t-esc="model.create_date"/>
-                            </a>
+
+                                <!-- Nút Xóa -->
+                                <!-- SỬA: Thêm .stop.prevent để chặn click lan ra ngoài -->
+                                <button class="btn btn-link text-danger p-0 ms-2 opacity-50 hover-opacity-100" 
+                                        style="z-index: 10;"
+                                        title="Delete this version"
+                                        t-on-click.stop.prevent="() => this.deleteModel(model.id)">
+                                    <i class="fa fa-trash"/>
+                                </button>
+                            </div>
                         </t>
+                        
                         <div t-if="state.modelsList.length === 0" class="p-4 text-center text-muted">
-                            No models found. Create one!
+                            <i class="fa fa-folder-open-o fa-3x mb-3"/>
+                            <p>No models found. Create one!</p>
                         </div>
                     </div>
                 </div>
@@ -63,18 +81,41 @@
                         <!-- Toolbar -->
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h2 class="fw-bold m-0" t-esc="state.selectedModel.name"/>
-                            <div>
+                            <div class="d-flex align-items-center">
+                                
+                                <!-- Hiển thị tên file đang chọn (nếu có) -->
+                                <span t-if="state.selectedModel.latest_filename" class="text-muted me-3 small d-none d-md-inline">
+                                    <i class="fa fa-file-text-o me-1"/>
+                                    File: <b t-esc="state.selectedModel.latest_filename"/>
+                                </span>
+
+                                <!-- Nút Edit Config -->
                                 <button t-if="!state.isEditMode" class="btn btn-outline-secondary me-2" t-on-click="() => state.isEditMode = true">
-                                    <i class="fa fa-edit me-1"/>Edit Config
+                                    <i class="fa fa-edit me-1"/>Config
                                 </button>
+                                
+                                <!-- Nút Save Config -->
                                 <button t-if="state.isEditMode" class="btn btn-success me-2" t-on-click="saveModelParams">
                                     <i class="fa fa-save me-1"/>Save
                                 </button>
                                 
-                                <button t-if="state.selectedModel.state == 'draft' || state.selectedModel.state == 'done'" 
-                                        class="btn btn-warning fw-bold text-dark" 
-                                        t-on-click="triggerRetrain">
-                                    <i class="fa fa-rocket me-1"/>Retrain Model
+                                <!-- NÚT RETRAIN (LOGIC CHUẨN) -->
+                                <!-- Trường hợp 1: Đang chạy -> Disable -->
+                                <button t-if="state.selectedModel.state == 'training'" class="btn btn-secondary disabled">
+                                    <i class="fa fa-cog fa-spin me-1"/>Processing...
+                                </button>
+
+                                <!-- Trường hợp 2: Chưa chạy -> Cho phép bấm -->
+                                <button t-else="" class="btn btn-warning fw-bold text-dark" t-on-click="triggerRetrain">
+                                    <i class="fa fa-rocket me-1"/>
+                                    <!-- Đổi chữ dựa trên việc có file hay chưa -->
+                                    <t t-if="state.selectedModel.latest_csv_path">Push &amp; Retrain</t>
+                                    <t t-else="">Retrain (Sample)</t>
+                                </button>
+                                <button t-if="state.selectedModel.state == 'training' || state.selectedModel.state == 'done'" 
+                                        class="btn btn-info text-white me-2" 
+                                        t-on-click="checkDownload">
+                                    <i class="fa fa-download me-1"/>Check &amp; Download Model
                                 </button>
                             </div>
                         </div>

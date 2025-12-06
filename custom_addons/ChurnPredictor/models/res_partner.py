@@ -82,24 +82,42 @@ class ResPartner(models.Model):
     x_is_imported_data = fields.Boolean(string="Is Imported Data", default=False)
 
     def action_predict_churn(self):
-        """
-        Phương thức này được gọi khi người dùng bấm nút "Predict Churn".
-        Nó sẽ thực hiện toàn bộ quy trình: tải model, chuẩn bị dữ liệu,
-        dự đoán, tính toán SHAP và lưu kết quả.
-        """
         _logger.info("Bắt đầu quy trình dự đoán churn cho khách hàng: %s", self.mapped('name'))
 
-        # --- BƯỚC 1: TẢI MODEL VÀ CÁC "TÀI SẢN" ML ---
         try:
-            base_path = os.path.dirname(__file__)
-            model_path = os.path.join(base_path, 'ml_assets', 'churn_model.joblib')
-            columns_path = os.path.join(base_path, 'ml_assets', 'model_columns.pkl')
+            # 1. Tìm model mới nhất
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            ml_assets_dir = os.path.join(current_dir, 'ml_assets')
+            
+            subfolders = [f for f in os.listdir(ml_assets_dir) if os.path.isdir(os.path.join(ml_assets_dir, f))]
+            
+            if subfolders:
+                latest_version = sorted(subfolders)[-1]
+                model_path = os.path.join(ml_assets_dir, latest_version, 'churn_model.joblib')
+            else:
+                model_path = os.path.join(ml_assets_dir, 'churn_model.joblib')
+
+            if not os.path.exists(model_path):
+                raise UserError("Chưa có model nào được huấn luyện.")
+
+            # 2. Load Model
             model = joblib.load(model_path)
-            with open(columns_path, 'rb') as f:
-                model_columns = pickle.load(f)
+            
+            # 3. [FIX] Lấy Columns từ Model
+            if hasattr(model, 'feature_names_in_'):
+                model_columns = model.feature_names_in_.tolist()
+            else:
+                # Fallback cũ
+                columns_path = os.path.join(os.path.dirname(model_path), 'model_columns.pkl')
+                if not os.path.exists(columns_path):
+                    columns_path = os.path.join(ml_assets_dir, 'model_columns.pkl')
+                
+                with open(columns_path, 'rb') as f:
+                    model_columns = pickle.load(f)
+
         except Exception as e:
-            _logger.error("Lỗi khi tải model: %s", e)
-            raise UserError(_("Đã xảy ra lỗi khi tải các tài sản Machine Learning: %s", str(e)))
+            _logger.error("Lỗi tải model: %s", e)
+            raise UserError(f"Lỗi tải model: {e}")
 
         # --- BƯỚC 2: THU THẬP VÀ TẠO FEATURE CHO KHÁCH HÀNG HIỆN TẠI ---
         customer_data = []
