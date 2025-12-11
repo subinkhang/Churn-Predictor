@@ -7,6 +7,8 @@ import markdown2 # <<< THÊM MỚI
 
 from odoo import models, fields, api, _ # <<< THÊM _
 from odoo.exceptions import UserError # <<< THÊM MỚI
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 _logger = logging.getLogger(__name__)
 
@@ -209,8 +211,7 @@ class ChurnPrediction(models.Model):
         
     def action_generate_ai_explanation(self):
         """
-        [UPDATED v3] Được gọi bởi nút "Explain with AI".
-        Nâng cấp: Bổ sung Context (Category & FULL Timeline History).
+        [UPDATED v6] Nâng cấp PROMPT: Tích hợp định nghĩa chiến lược Segment 0-4.
         """
         self.ensure_one()
         
@@ -225,7 +226,7 @@ class ChurnPrediction(models.Model):
             raise UserError(_("AI Service is not configured."))
         
         if not self.shap_data_json:
-            raise UserError(_("No SHAP data available. Please run prediction first."))
+            raise UserError(_("No SHAP data available."))
 
         # --- BƯỚC 2: CHUẨN BỊ DỮ LIỆU SHAP ---
         try:
@@ -239,44 +240,60 @@ class ChurnPrediction(models.Model):
             reverse=True
         )
         
-        # --- [NEW] BƯỚC 2.1: LẤY DỮ LIỆU BỐI CẢNH (CONTEXT DATA) ---
-        _logger.info(">>> Đang thu thập dữ liệu bối cảnh khách hàng...")
-
-        # 1. Lấy Product Category
+        # --- BƯỚC 2.1: LẤY DỮ LIỆU BỐI CẢNH (CONTEXT DATA) ---
+        
+        # 1. Product Category
         raw_category = self.customer_id.x_feat_product_category_name_english_last or "Unknown"
         customer_category = raw_category.replace('_', ' ').title()
 
-        # 2. Lấy Lịch sử tương tác (TIMELINE HISTORY)
+        # 2. Các chỉ số hành vi & Segment
+        personal_gap = self.customer_id.x_feat_personal_avg_gap or 0.0
+        category_gap = self.customer_id.x_feat_category_avg_gap or 0.0
+        segment_id = self.customer_id.x_feat_segment or 0
+
+        # === [NEW] LOGIC ĐỊNH NGHĨA SEGMENT ===
+        segment_definitions = {
+            2: """**Segment 2: "Khách hàng Ngôi sao" (Active High Value)**
+            - Chân dung: Khách hàng lý tưởng, chi tiêu cao, mới tương tác. Đang 'nuôi sống' doanh nghiệp.
+            - Chiến lược: Chăm sóc đặc biệt, upsell, gửi mã giảm giá khuyến khích mua tiếp. Đừng để họ nguội lạnh.""",
+            
+            1: """**Segment 1: "VIP Ngủ đông" (At-Risk VIP)**
+            - Chân dung: Từng chi rất nhiều tiền cho món giá trị lớn nhưng đang có dấu hiệu rời bỏ (Churn).
+            - Chiến lược: Cần chiến dịch 'Win-back' khẩn cấp. Gửi email nhắc nhở, đề xuất phụ kiện đi kèm món đã mua.""",
+            
+            0: """**Segment 0: "Khách hàng Mới / Tiềm năng" (New & Active Low Value)**
+            - Chân dung: Khách mới hoặc hay săn sale, Recency tốt nhưng chưa dám chi lớn.
+            - Chiến lược: Dễ chuyển đổi nhất. Hãy Cross-sell sản phẩm giá trị cao hơn hoặc bán theo Combo.""",
+            
+            3: """**Segment 3: "Khách hàng Phổ thông đang trôi đi" (Drifting)**
+            - Chân dung: Mua đồ giá trị nhỏ, đã bắt đầu quên lãng thương hiệu. Số lượng đông.
+            - Chiến lược: Giữ liên lạc duy trì (newsletter), không tốn quá nhiều ngân sách marketing.""",
+            
+            4: """**Segment 4: "Khách hàng Đã mất / Kém hiệu quả" (Lost / Low Value)**
+            - Chân dung: Mua món rẻ tiền từ rất lâu, không quay lại.
+            - Chiến lược: Không nên tốn chi phí quảng cáo (ROI thấp)."""
+        }
+        
+        # Lấy định nghĩa cho khách hàng hiện tại (Mặc định là Segment 3 nếu không tìm thấy)
+        current_segment_info = segment_definitions.get(segment_id, segment_definitions[3])
+
+        # 3. Lấy Lịch sử tương tác
         history_log = ""
         try:
-            # Gọi hàm lấy timeline từ res.partner
             timeline_data = self.customer_id.get_interaction_timeline_data(self.customer_id.id)
             timeline_list = timeline_data.get('timeline', [])
-            
             if timeline_list:
-                # Lấy tối đa 10 sự kiện gần nhất để tránh quá tải Token
-                # timeline_list đã được sort ngược (mới nhất đầu tiên) từ hàm gốc
                 recent_events = timeline_list[:10] 
-                
                 log_lines = []
                 for event in recent_events:
-                    # Format: "- 2023-12-01 [Email]: Tiêu đề - Nội dung ngắn"
-                    # Cắt ngắn description nếu quá dài (> 100 ký tự) để tiết kiệm token
                     desc = event['description']
-                    if len(desc) > 100:
-                        desc = desc[:100] + "..."
-                        
+                    if len(desc) > 100: desc = desc[:100] + "..."     
                     line = f"- {event['date']} [{event['channel']}]: {event['title']} - {desc}"
                     log_lines.append(line)
-                
                 history_log = "\n".join(log_lines)
-                _logger.info(">>> Đã lấy %d sự kiện lịch sử gần nhất.", len(recent_events))
             else:
                 history_log = "Chưa có lịch sử tương tác nào."
-                _logger.info(">>> Khách hàng chưa có tương tác nào trong timeline.")
-                
-        except Exception as e:
-            _logger.warning(">>> Lỗi khi lấy lịch sử tương tác: %s", str(e))
+        except Exception:
             history_log = "Không thể truy xuất lịch sử tương tác."
 
         # --- BƯỚC 2.2: XỬ LÝ TEXT SHAP ---
@@ -286,57 +303,59 @@ class ChurnPrediction(models.Model):
         for name, shap_val, feature_val in feature_impacts[:top_n]:
             if count >= top_n: break
             if name.startswith('bert_') or name.startswith('tfidf_'): continue
-            
             direction = "tăng" if shap_val > 0 else "giảm"
             features_description += f"- {name} = {feature_val:.2f}: làm {direction} nguy cơ churn (độ mạnh: {shap_val:.4f})\n"
             count += 1
 
         prediction_summary = "RỜI BỎ (Churn)" if self.prediction_result == 'churn' else "Ở LẠI (No Churn)"
 
-        # --- BƯỚC 3: XÂY DỰNG PROMPT NÂNG CẤP ---
-        # Đã cập nhật phần Timeline History
-        
+        # --- BƯỚC 3: XÂY DỰNG PROMPT (ĐÃ TỐI ƯU HÓA SEGMENT) ---
         prompt = f"""
-        **Vai trò:** Bạn là chuyên gia phân tích trải nghiệm khách hàng (CX Analyst). Hãy viết báo cáo phân tích rủi ro bằng tiếng Việt (Markdown).
+        **Vai trò:** Bạn là chuyên gia tư vấn chiến lược khách hàng (Customer Strategy Consultant). Hãy phân tích và đưa ra giải pháp hành động cụ thể bằng tiếng Việt (Markdown).
 
-        **1. Hồ sơ Khách hàng (Context):**
+        **1. Hồ sơ Khách hàng & Phân khúc (Quan trọng):**
         - **Ngành hàng quan tâm:** {customer_category}
-        - **Dòng thời gian tương tác (Mới nhất trước):**
+        - **Phân loại Phân khúc (Segment):** 
+        {current_segment_info}
+        
+        - **Chỉ số Chu kỳ mua sắm (Gap Analysis):**
+          + Cá nhân khách này: {personal_gap:.2f} ngày/lần
+          + Trung bình ngành hàng: {category_gap:.2f} ngày/lần
+          (Gợi ý: Nếu Cá nhân > Ngành hàng nghĩa là khách mua chậm hơn thị trường -> Rủi ro).
+
+        **2. Dòng thời gian tương tác (Gần nhất trước):**
         {history_log}
 
-        **2. Kết quả Dự báo AI:**
+        **3. Kết quả Dự báo AI:**
         - **Dự đoán:** {prediction_summary}
-        - **Xác suất:** {self.probability:.2f}%
+        - **Xác suất Churn:** {self.probability:.2f}%
         
-        **3. Phân tích Dữ liệu Kỹ thuật (SHAP Values):**
+        **4. Dữ liệu SHAP (Các yếu tố ảnh hưởng kỹ thuật):**
         {features_description}
 
         ---
         **Yêu cầu đầu ra (Output Format):**
         
-        **Kết luận:** [Đánh giá tổng quan về tình trạng khách hàng dựa trên cả Lịch sử tương tác và Chỉ số dự báo].
+        **Tổng quan:** [Đánh giá ngắn gọn tình trạng khách hàng dựa trên Phân khúc và Xác suất Churn].
 
-        **🔴 Rủi ro & Vấn đề:**
-        - **[Tên vấn đề]:** [Giải thích ngắn gọn].
+        **🔴 Vấn đề & Rủi ro:**
+        - **[Tên vấn đề]:** [Giải thích dựa trên Gap Analysis và SHAP].
         
-        **🟢 Điểm tích cực:**
-        - **[Tên điểm tốt]:** [Giải thích ngắn gọn].
+        **🟢 Điểm sáng:**
+        - **[Tên điểm tốt]:** [Giải thích].
 
-        **💡 Hành động đề xuất:**
-        - [Dựa trên lịch sử tương tác (ví dụ: nếu có phàn nàn/trả hàng) và ngành hàng {customer_category}, hãy đề xuất 1 hành động cụ thể cho Sales/CSKH để giữ chân khách].
+        **🚀 Chiến lược Hành động (Dựa trên Segment {segment_id}):**
+        - **[Hành động 1 - Cụ thể]:** [Dựa trên phần 'Chiến lược' của Segment {segment_id} ở trên, hãy cụ thể hóa nó cho ngành hàng {customer_category}. Ví dụ: Nếu là VIP Ngủ đông ngành Furniture, hãy gợi ý gửi catalog nội thất mới].
+        - **[Hành động 2 - Tương tác]:** [Dựa trên lịch sử tương tác gần nhất].
 
-        **Lưu ý quan trọng:** 
-        - Hãy đọc kỹ "Dòng thời gian tương tác". Nếu thấy khách hàng có phàn nàn, khiếu nại hoặc trả hàng gần đây, hãy coi đó là nguyên nhân chính dẫn đến Churn và cảnh báo ngay.
+        **Lưu ý:** Hãy bám sát định nghĩa của Segment {segment_id} để đưa ra lời khuyên. Đừng đưa ra lời khuyên chung chung.
         """
         
-        # --- BƯỚC 4: GỌI API (Cấu hình Max Token & Safety) ---
+        # --- BƯỚC 4: GỌI API (NO SSL) ---
         headers = {'Content-Type': 'application/json'}
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.7, 
-                "maxOutputTokens": 4096 
-            },
+            "generationConfig": { "temperature": 0.7, "maxOutputTokens": 4096 },
             "safetySettings": [
                 { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
                 { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
@@ -346,18 +365,22 @@ class ChurnPrediction(models.Model):
         }
         
         try:
-            # _logger.info(">>> Prompt gửi đi (Debug): %s", prompt) # Uncomment nếu muốn xem prompt
+            import requests
+            # Tắt cảnh báo SSL
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
             response = requests.post(
                 f"{api_endpoint}?key={api_key}", 
                 headers=headers, 
                 json=payload,
-                timeout=30
+                timeout=30,
+                verify=False 
             )
             response.raise_for_status()
             
             response_data = response.json()
             
-            # Xử lý kết quả trả về (bao gồm cả trường hợp MAX_TOKENS)
             if 'candidates' in response_data and response_data['candidates']:
                 candidate = response_data['candidates'][0]
                 finish_reason = candidate.get('finishReason')
@@ -374,20 +397,14 @@ class ChurnPrediction(models.Model):
                 raise UserError(_("AI returned an empty response."))
 
             html_explanation = markdown2.markdown(raw_explanation_md)
-            
             if finish_reason == 'MAX_TOKENS':
                 html_explanation += "<p><em>(Kết quả bị cắt ngắn do giới hạn độ dài.)</em></p>"
 
-            self.write({
-                'shap_ai_explanation': html_explanation
-            })
-            _logger.info(">>> Đã lưu kết quả XAI (bao gồm lịch sử tương tác) thành công.")
+            self.write({'shap_ai_explanation': html_explanation})
+            _logger.info(">>> Đã lưu kết quả XAI (Segment Intelligence) thành công.")
 
-        except requests.exceptions.RequestException as e:
-            _logger.error("Lỗi kết nối API: %s", e)
-            raise UserError(_("Connection Error: %s", str(e)))
         except Exception as e:
-            _logger.error("Lỗi hệ thống: %s", e)
+            _logger.error("Lỗi hệ thống XAI: %s", e)
             raise UserError(_("System Error: %s", str(e)))
 
         return True

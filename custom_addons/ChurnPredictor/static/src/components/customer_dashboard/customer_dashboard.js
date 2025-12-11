@@ -8,7 +8,7 @@ import { ChartRenderer } from "../chart_renderer/chart_renderer";
 
 // === UPDATE 2: Dọn dẹp các import không còn cần thiết từ OWL ===
 // Chúng ta không cần onMounted, onWillDestroy, useRef nữa vì ChartRenderer sẽ xử lý chúng.
-const { Component, onWillStart, useState } = owl;
+const { Component, onWillStart, useState, markup } = owl;
 
 export class CustomerDashboard extends Component {
     setup() {
@@ -52,9 +52,18 @@ export class CustomerDashboard extends Component {
     // Các hàm loadCustomerData, loadSalesData, loadLatestPrediction giữ nguyên 100%
     async loadCustomerData() {
         if (!this.customerId) return;
-        const data = await this.orm.read("res.partner", [this.customerId], ["id", "name", "create_date", "email", "phone", "street", "city", "state_id", "country_id", "image_128"]);
+        
+        // === UPDATE: Thêm 3 trường x_feat_... vào danh sách này ===
+        const fieldsToRead = [
+            "id", "name", "create_date", "email", "phone", 
+            "street", "city", "state_id", "country_id", "image_128",
+            "x_feat_segment", "x_feat_personal_avg_gap", "x_feat_category_avg_gap" // <--- MỚI THÊM
+        ];
+
+        const data = await this.orm.read("res.partner", [this.customerId], fieldsToRead);
         if (data && data.length > 0) this.state.customerData = data[0];
     }
+    
     async loadSalesData() {
         if (!this.customerId) return;
         const salesData = await this.orm.readGroup('sale.order', [['partner_id', '=', this.customerId], ['state', 'in', ['sale', 'done']]], ['amount_total:sum'], []);
@@ -66,15 +75,25 @@ export class CustomerDashboard extends Component {
 
     async loadLatestPrediction() {
         if (!this.customerId) return;
-        // Yêu cầu thêm 2 trường mới từ backend
+        
         const fieldsToLoad = [
             'prediction_result', 'prediction_date', 'probability', 'probability_level', 
             'product_count', 'churn_rate', 'is_high_risk', 'shap_html',
-            'shap_ai_explanation', 'shap_data_json' // <--- THÊM 2 TRƯỜNG NÀY
+            'shap_ai_explanation', 'shap_data_json'
         ];
+        
         const predictionData = await this.orm.searchRead('churn.prediction', [['customer_id', '=', this.customerId]], fieldsToLoad, { order: 'prediction_date desc', limit: 1 });
+        
         if (predictionData && predictionData.length > 0) {
-            this.state.latestPrediction = predictionData[0];
+            const prediction = predictionData[0];
+
+            // === SỬA TẠI ĐÂY: Dùng hàm markup() ===
+            if (prediction.shap_ai_explanation) {
+                // Hàm markup() sẽ báo cho Odoo biết chuỗi này là HTML an toàn
+                prediction.shap_ai_explanation = markup(prediction.shap_ai_explanation);
+            }
+
+            this.state.latestPrediction = prediction;
         }
     }
 

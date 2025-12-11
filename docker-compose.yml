@@ -19,6 +19,8 @@ services:
   # Service cho ứng dụng Odoo
   odoo:
     build: . # Xây dựng image từ Dockerfile trong thư mục hiện tại
+    # cap_add:
+    #   - SYS_TIME
     image: churn-predictor
     depends_on:
       - postgres # Đảm bảo service postgres khởi động trước odoo
@@ -34,6 +36,16 @@ services:
       # Tùy chọn: ADMIN_PASSWORD giúp quản lý DB qua UI dễ hơn
       ADMIN_PASSWORD: admin123
       TZ: Asia/Ho_Chi_Minh
+      # Đường dẫn thư viện (Khớp với Dockerfile đã tối ưu ở câu trả lời trước)
+      # Nếu bạn dùng Dockerfile cũ chưa tối ưu, sửa thành: /usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1
+      LD_PRELOAD: /usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1
+
+      # Thời gian bạn muốn Odoo "nhìn thấy"
+      # Định dạng: "YYYY-MM-DD HH:MM:SS"
+      FAKETIME: "2018-10-18 18:56:00"
+
+      # Mẹo: Thêm dòng này để tránh Odoo bị lag/treo khi dùng fake time
+      DONT_FAKE_MONOTONIC: 1
     volumes:
       - odoo_web_data:/var/lib/odoo
       # Mount thư mục addon tùy chỉnh
@@ -43,7 +55,7 @@ services:
       - ./db_backups:/mnt/odoo_backups_for_restore
       # Tùy chọn: mount file cấu hình odoo.conf
       - ./odoo.conf:/etc/odoo/odoo.conf
-    command: --config /etc/odoo/odoo.conf --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons
+    command: --config /etc/odoo/odoo.conf --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons -i base -d ChurnPredictor_v2
     networks:
       - odoo-network
 

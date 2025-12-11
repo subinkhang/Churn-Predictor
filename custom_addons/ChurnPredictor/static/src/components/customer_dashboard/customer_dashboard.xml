@@ -1,164 +1,259 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="churn_predictor.CustomerDashboard" owl="1">
-        <!-- CSS Cục bộ cho Timeline (Giữ nguyên) -->
+        <!-- CSS Cục bộ -->
         <style>
             .customer-timeline { list-style-type: none; padding-left: 20px; position: relative; }
             .customer-timeline::before { content: ''; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; background: #e9ecef; }
-            .customer-timeline-item { position: relative; padding: 5px 0 15px 25px; cursor: pointer; transition: background-color 0.2s ease; }
+            .customer-timeline-item { position: relative; padding: 5px 0 15px 25px; cursor: pointer; transition: background-color 0.2s ease; border-radius: 4px; }
             .customer-timeline-item:hover { background-color: #f8f9fa; }
             .customer-timeline-item.selected { background-color: #e9f0ff; }
             .customer-timeline-item .timeline-icon { position: absolute; left: -10px; top: 5px; width: 22px; height: 22px; background: #fff; border: 2px solid #017e84; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1; }
             .customer-timeline-item .timeline-icon .fa { font-size: 12px; color: #017e84; }
+            
+            /* Tùy chỉnh thanh cuộn cho gọn */
+            .custom-scroll::-webkit-scrollbar { width: 6px; }
+            .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+            .custom-scroll::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+            .custom-scroll::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+            .ai-analysis-content p {
+                margin-bottom: 0.8rem; /* Tạo khoảng cách giữa các đoạn văn */
+                line-height: 1.5;
+            }
+            .ai-analysis-content h3 {
+                font-size: 1rem;
+                font-weight: bold;
+                margin-top: 1rem;
+                margin-bottom: 0.5rem;
+                color: #017e84; /* Màu xanh của Odoo hoặc màu brand của bạn */
+            }
+            .ai-analysis-content strong {
+                font-weight: 600;
+                color: #333;
+            }
+            .ai-analysis-content ul {
+                padding-left: 20px;
+                margin-bottom: 1rem;
+            }
+            .ai-analysis-content li {
+                margin-bottom: 0.25rem;
+            }
         </style>
 
-        <div class="o_content vh-100 overflow-auto bg-muted p-lg-4 p-3">
+        <div class="o_content vh-100 overflow-auto bg-100 p-lg-4 p-3">
             <h1 class="text-primary fw-bold mb-4">Churn Detail Dashboard for <t t-esc="state.customerData.name"/></h1>
 
-            <!-- === BẮT ĐẦU PHẦN BỐ CỤC ĐÃ TỐI ƯU === -->
-            
-            <!-- HÀNG 1: Chứa Profile Card (trái) và SHAP (phải) -->
-            <div class="row">
-                <!-- CỘT TRÁI: Profile Card - Chiếm 8/12 phần không gian -->
-                <div class="col-lg-5 mb-4">
-                    <div class="h-100">
-                        <ProfileCard customer="state.customerData" lifetimeValue="state.lifetimeValue" latestPrediction="state.latestPrediction"/>
-                    </div>
-                </div>
-                <div class="col-lg-7 mb-4">
-                    <div class="shadow-sm border bg-white p-4">
-                        <h2 class="mb-4">Customer Interaction Timeline</h2>
-                        <div class="row mb-4">
-                            <div class="col-md-3"><select class="form-select"><option>Date range</option></select></div>
-                            <div class="col-md-3"><select class="form-select"><option>Channel</option></select></div>
-                            <div class="col-md-3"><select class="form-select"><option>Event type</option></select></div>
+            <!-- ============================================================== -->
+            <!-- HÀNG 1: PROFILE, METRICS (TRÁI) & CHART (PHẢI) -->
+            <!-- ============================================================== -->
+            <div class="row g-4 mb-4"> <!-- g-4 tạo khoảng cách đều giữa các cột -->
+                
+                <!-- CỘT TRÁI: Profile & Segmentation Metrics -->
+                <div class="col-lg-5">
+                    <div class="d-flex flex-column gap-4">
+                        <!-- 1. Profile Card Component -->
+                        <div>
+                            <ProfileCard customer="state.customerData" lifetimeValue="state.lifetimeValue" latestPrediction="state.latestPrediction"/>
                         </div>
 
-                        <!-- Hàng chính chứa biểu đồ và các thông tin chi tiết -->
-                        <div class="row">
-                            <!-- Cột trái: Biểu đồ và Timeline -->
-                            <div class="col-lg-8">
-                                <div class="mb-4" style="height: 250px;">
-                                    <ChartRenderer type="'bar'" config="state.interactionChartConfig"/>
+                        <!-- 2. Segmentation Metrics Card (Đã sửa lỗi hiển thị) -->
+                        <div class="card shadow-sm border-0">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary fw-bold mb-3 border-bottom pb-2" style="font-size: 1rem;">
+                                    <i class="fa fa-pie-chart me-2"/>Segmentation Metrics
+                                </h5>
+                                <div class="row text-center align-items-center">
+                                    <!-- Cột Segment -->
+                                    <div class="col-4 border-end">
+                                        <div class="text-muted text-uppercase fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">Segment</div>
+                                        <div class="h3 fw-bold text-dark mb-0 mt-1">
+                                            <t t-esc="state.customerData.x_feat_segment"/>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Cột Personal Gap -->
+                                    <div class="col-4 border-end">
+                                        <div class="text-muted text-uppercase fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">Personal Gap</div>
+                                        <div class="h4 fw-bold text-success mb-0 mt-1">
+                                            <t t-esc="state.customerData.x_feat_personal_avg_gap ? state.customerData.x_feat_personal_avg_gap.toFixed(2) : '0.00'"/>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cột Category Gap -->
+                                    <div class="col-4">
+                                        <div class="text-muted text-uppercase fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">Cat. Gap</div>
+                                        <div class="h4 fw-bold text-info mb-0 mt-1">
+                                            <t t-esc="state.customerData.x_feat_category_avg_gap ? state.customerData.x_feat_category_avg_gap.toFixed(2) : '0.00'"/>
+                                        </div>
+                                    </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CỘT PHẢI: Interaction Chart -->
+                <div class="col-lg-7">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h2 class="h5 mb-3 fw-bold">Customer Interaction Timeline</h2>
+                            
+                            <!-- Filters -->
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-3"><select class="form-select form-select-sm"><option>Date range</option></select></div>
+                                <div class="col-md-3"><select class="form-select form-select-sm"><option>Channel</option></select></div>
+                                <div class="col-md-3"><select class="form-select form-select-sm"><option>Event type</option></select></div>
+                            </div>
+
+                            <!-- Chart Area -->
+                            <div class="flex-grow-1" style="min-height: 250px;">
+                                <ChartRenderer type="'bar'" config="state.interactionChartConfig"/>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="row">
-                <!-- CỘT PHẢI: SHAP Explanation - Chiếm 4/12 phần không gian -->
-                <div class="col-lg-3 mb-4">
-                    <!-- Sử dụng card và flexbox để căn giữa nội dung cho đẹp mắt -->
-                    <div class="card h-100">
+            <!-- ============================================================== -->
+            <!-- HÀNG 2: AI ANALYSIS, TIMELINE LIST & DETAILS -->
+            <!-- ============================================================== -->
+            <div class="row g-4">
+                
+                <!-- CỘT 1: Prediction Analysis (SHAP/AI) -->
+                <div class="col-lg-3">
+                    <div class="card shadow-sm border-0 h-100">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="mb-3">Prediction Analysis</h5>
+                            <h5 class="mb-3 fw-bold text-primary"><i class="fa fa-magic me-2"/>AI Analysis</h5>
 
-                            <!-- Phần này chỉ hiển thị khi có một bản ghi dự đoán -->
                             <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
-                                
-                                <!-- PHẦN 1: KHU VỰC NỘI DUNG AI (Thay đổi tùy trạng thái) -->
-                                <div class="flex-grow-1 mb-3">
-                                    <!-- Trạng thái A: Đã có giải thích từ AI -->
+                                <!-- Trạng thái: Đã có giải thích -->
+                                <div class="flex-grow-1 d-flex flex-column">
                                     <t t-if="state.latestPrediction.shap_ai_explanation">
-                                        <div class="alert alert-info h-100 overflow-auto" style="max-height: 200px;">
-                                            <h6 class="alert-heading fw-bold small">
-                                                <i class="fa fa-lightbulb-o me-2"/>AI Analysis
-                                            </h6>
-                                            <div class="small" style="line-height: 1.5; font-size: 0.85rem;">
+                                        <div class="alert alert-info border-0 bg-light p-3 flex-grow-1 custom-scroll overflow-auto" style="max-height: 300px;">
+                                            <!-- Thêm class 'ai-analysis-content' để dễ chỉnh CSS -->
+                                            <div class="ai-analysis-content text-dark" style="font-size: 0.9rem;">
                                                 <t t-out="state.latestPrediction.shap_ai_explanation"/>
                                             </div>
                                         </div>
                                     </t>
-
-                                    <!-- Trạng thái B: Chưa có giải thích -> Hiện nút tạo -->
+                                    
+                                    <!-- Trạng thái: Chưa có giải thích -->
                                     <t t-else="">
-                                        <div class="text-center text-muted mb-3">
-                                            <small>Use AI to summarize why this customer might churn.</small>
+                                        <div class="text-center text-muted my-auto py-4">
+                                            <i class="fa fa-lightbulb-o fa-3x mb-3 text-warning opacity-50"/>
+                                            <p class="small mb-0">Use AI to understand why this customer might churn.</p>
                                         </div>
-                                        <button class="btn btn-primary w-100 mb-2" t-on-click="generateAIExplanation" t-att-disabled="state.isGeneratingExplanation">
+                                        <button class="btn btn-primary w-100 mt-3 shadow-sm" t-on-click="generateAIExplanation" t-att-disabled="state.isGeneratingExplanation">
                                             <i t-if="state.isGeneratingExplanation" class="fa fa-spinner fa-spin me-2"/>
-                                            <i t-else="" class="fa fa-magic me-2"/>
-                                            <t t-esc="state.isGeneratingExplanation ? 'Generating...' : 'Explain with AI'"/>
+                                            <i t-else="" class="fa fa-sparkles me-2"/>
+                                            <t t-esc="state.isGeneratingExplanation ? 'Analyzing...' : 'Explain with AI'"/>
                                         </button>
                                     </t>
                                 </div>
 
-                                <!-- PHẦN 2: KHU VỰC CÔNG CỤ KỸ THUẬT (Luôn hiển thị) -->
-                                <!-- Tách biệt hoàn toàn khỏi logic if/else ở trên -->
-                                <div class="border-top pt-3">
+                                <!-- Tools -->
+                                <div class="mt-3 pt-3 border-top">
                                     <div class="d-grid gap-2">
-                                        <!-- Nút xem biểu đồ gốc -->
                                         <button class="btn btn-outline-secondary btn-sm" t-on-click="onViewShapClick">
-                                            <i class="fa fa-area-chart me-2"/>View Technical Plot
+                                            <i class="fa fa-bar-chart me-2"/>Technical Plot
                                         </button>
-                                        
-                                        <!-- NÚT DEBUG LOGS: Luôn hiển thị nếu có SHAP -->
                                         <button class="btn btn-outline-dark btn-sm" t-on-click="onCheckDebugLogs">
-                                            <i class="fa fa-terminal me-2"/>Check Debug Logs
+                                            <i class="fa fa-terminal me-2"/>Debug Logs
                                         </button>
                                     </div>
                                 </div>
-
                             </t>
 
-                            <!-- Trường hợp không có bản ghi dự đoán nào -->
                             <t t-else="">
-                                <div class="text-muted text-center flex-grow-1 d-flex align-items-center justify-content-center">
-                                    <div>
-                                        <i class="fa fa-info-circle fa-2x mb-2"/>
-                                        <p>No prediction data is available for this customer.</p>
+                                <div class="text-muted text-center py-5">
+                                    <i class="fa fa-database fa-2x mb-3 opacity-25"/>
+                                    <p class="small">No prediction data available.</p>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CỘT 2: Timeline List -->
+                <div class="col-lg-4">
+                    <div class="card shadow-sm border-0 h-100" style="max-height: 500px;">
+                        <div class="card-header bg-white fw-bold py-3 sticky-top border-bottom">
+                            <i class="fa fa-history me-2 text-primary"/>History Timeline
+                        </div>
+                        <div class="card-body overflow-auto custom-scroll p-0 pt-3">
+                            <ul class="customer-timeline pe-3">
+                                <t t-foreach="state.interactionData.timeline" t-as="event" t-key="event.id">
+                                    <li t-on-click="() => this.onSelectEvent(event)" 
+                                        t-att-class="'customer-timeline-item ' + (state.selectedEvent and state.selectedEvent.id === event.id ? 'selected' : '')">
+                                        <div class="timeline-icon"><i t-att-class="'fa ' + event.icon"/></div>
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <div class="fw-bold text-dark"><t t-esc="event.title"/></div>
+                                            <span class="badge bg-light text-dark border"><t t-esc="event.date"/></span>
+                                        </div>
+                                        <div class="small text-muted text-truncate"><t t-esc="event.description"/></div>
+                                    </li>
+                                </t>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CỘT 3: Insights & Details -->
+                <div class="col-lg-5">
+                    <div class="d-flex flex-column gap-4 h-100">
+                        <!-- Insights Box -->
+                        <div class="card shadow-sm border-0 flex-grow-0">
+                            <div class="card-header bg-warning bg-opacity-10 fw-bold text-warning-emphasis border-0">
+                                <i class="fa fa-star me-2"/>Key Insights
+                            </div>
+                            <ul class="list-group list-group-flush small">
+                                <t t-foreach="state.interactionData.insights" t-as="insight" t-key="insight">
+                                    <li class="list-group-item bg-transparent border-light py-2">
+                                        <i class="fa fa-check-circle text-success me-2"/> <t t-esc="insight"/>
+                                    </li>
+                                </t>
+                            </ul>
+                        </div>
+
+                        <!-- Event Details Box -->
+                        <div class="card shadow-sm border-0 flex-grow-1">
+                            <div class="card-header bg-white fw-bold border-bottom">
+                                <i class="fa fa-info-circle me-2 text-info"/>Event Details
+                            </div>
+                            <div class="card-body">
+                                <t t-if="state.selectedEvent">
+                                    <h5 class="text-primary mb-3"><t t-esc="state.selectedEvent.title"/></h5>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-6">
+                                            <div class="small text-muted fw-bold">TYPE</div>
+                                            <span class="badge bg-secondary"><t t-esc="state.selectedEvent.type"/></span>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="small text-muted fw-bold">DATE</div>
+                                            <div class="text-dark"><t t-esc="state.selectedEvent.date"/></div>
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="small text-muted fw-bold">CHANNEL</div>
+                                            <div class="text-dark"><i class="fa fa-globe me-2 text-muted"/><t t-esc="state.selectedEvent.channel"/></div>
+                                        </div>
                                     </div>
-                                </div>
-                            </t>
+                                    <div class="p-3 bg-light rounded border">
+                                        <p class="mb-0 text-break" style="font-size: 0.95rem; white-space: pre-wrap;"><t t-esc="state.selectedEvent.description"/></p>
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted opacity-75">
+                                        <i class="fa fa-mouse-pointer fa-3x mb-3"/>
+                                        <p>Select an event from the timeline to view details.</p>
+                                    </div>
+                                </t>
+                            </div>
                         </div>
                     </div>
-                    <!-- <div class="card h-100">
-                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center">
-                            <t t-if="state.latestPrediction and state.latestPrediction.shap_html">
-                                <h5 class="mb-3">Prediction Explanation Analysis</h5>
-                                <p class="text-muted small">Click the button below to open a detailed SHAP force plot that explains which features contributed to this prediction.</p>
-                                <button class="btn btn-primary" t-on-click="onViewShapClick">
-                                    <i class="fa fa-external-link me-2"/>
-                                    View SHAP Explanation
-                                </button>
-                            </t>
-                            <t t-else="">
-                                <div class="text-muted p-3">
-                                    <i class="fa fa-info-circle me-2"/>
-                                    <span>SHAP explanation is not available for this prediction.</span>
-                                </div>
-                            </t>
-                        </div>
-                    </div> -->
                 </div>
 
-                <div class="col-lg-4 h-100">
-                    <div class="card-body">
-                        <h5 class="text-muted">Timeline</h5>
-                        <ul class="customer-timeline">
-                            <t t-foreach="state.interactionData.timeline" t-as="event" t-key="event.id">
-                                <li t-on-click="() => this.onSelectEvent(event)" t-att-class="{ 'customer-timeline-item': true, 'selected': state.selectedEvent and state.selectedEvent.id === event.id }">
-                                    <div class="timeline-icon"><i t-att-class="'fa ' + event.icon"/></div>
-                                    <div class="fw-bold"><t t-esc="event.title"/></div>
-                                    <div class="small text-muted"><t t-esc="event.date"/></div>
-                                </li>
-                            </t>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- Cột phải: Insights và Chi tiết sự kiện -->
-                <div class="col-lg-5 d-flex flex-column">
-                    <div class="card mb-3"><div class="card-header fw-bold">Insights</div><ul class="list-group list-group-flush"><t t-foreach="state.interactionData.insights" t-as="insight" t-key="insight"><li class="list-group-item"><i class="fa fa-lightbulb-o text-warning me-2"/> <t t-esc="insight"/></li></t></ul></div>
-                    <div class="card flex-grow-1"><div class="card-header fw-bold">Event Details</div><div class="card-body"><t t-if="state.selectedEvent"><div class="mb-2"><strong>Type:</strong> <span class="badge bg-secondary"><t t-esc="state.selectedEvent.type"/></span></div><div class="mb-2"><strong>Date:</strong> <t t-esc="state.selectedEvent.date"/></div><div class="mb-2"><strong>Channel:</strong> <t t-esc="state.selectedEvent.channel"/></div><hr/><p class="mb-0"><t t-esc="state.selectedEvent.description"/></p></t><t t-else=""><div class="text-muted text-center p-3"><i class="fa fa-hand-pointer-o fa-2x mb-2"/><div>Click an event on the timeline to see details.</div></div></t></div></div>
-                </div>
-            </div>
-
-            <!-- HÀNG 2: Customer Interaction Timeline - Chiếm toàn bộ chiều rộng -->
-            
-            <!-- === KẾT THÚC PHẦN BỐ CỤC ĐÃ TỐI ƯU === -->
+            </div> <!-- End Row 2 -->
 
         </div>
     </t>

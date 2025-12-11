@@ -30,7 +30,8 @@ def import_data(env):
     # import_orders(env)
     # import_order_lines(env)
     # import_reviews_and_payments(env)
-    import_customer_features(env)
+    # import_customer_features(env)
+    import_customer_additional_data(env)
     
     _logger.info("--- TOÀN BỘ QUÁ TRÌNH IMPORT ĐÃ HOÀN TẤT ---")
 
@@ -674,6 +675,102 @@ def import_customer_features(env):
 
     except Exception as e:
         _logger.error(f"Lỗi trong quá trình import features: {e}", exc_info=True)
+
+def import_customer_additional_data(env):
+    """
+    Hàm này đọc file chứa dữ liệu bổ sung (Segment, Gap...) và cập nhật vào Customer.
+    File csv ví dụ: customer_segmentation.csv
+    Cột key: customer_unique_id -> map với x_unique_id trong Odoo
+    """
+    # Đặt tên file csv của bạn ở đây
+    filename = 'order_context_data.csv' 
+    filepath = os.path.join(DATA_DIR, filename)
+    
+    _logger.info(f"========================================================")
+    _logger.info(f"BẮT ĐẦU CẬP NHẬT DỮ LIỆU BỔ SUNG (SEGMENT/GAP)")
+    _logger.info(f"File: {filename}")
+    _logger.info(f"========================================================")
+    
+    if not os.path.exists(filepath):
+        _logger.error(f"LỖI: Không tìm thấy file '{filepath}'.")
+        return
+
+    try:
+        # Vẫn dùng Chunking để an toàn cho RAM
+        chunk_size = 500 
+        csv_iterator = pd.read_csv(filepath, chunksize=chunk_size)
+        
+        total_updated = 0
+        
+        for chunk_idx, df in enumerate(csv_iterator):
+            _logger.info(f"--- Đang xử lý Chunk {chunk_idx + 1} (Dòng {chunk_idx * chunk_size} -> {(chunk_idx + 1) * chunk_size}) ---")
+            
+            # 1. Xử lý dữ liệu
+            df.fillna(0, inplace=True)
+            
+            # Lưu ý: Trong file mới tên cột là 'customer_unique_id', 
+            # nhưng trong Odoo field là 'x_unique_id'.
+            current_ids = df['customer_unique_id'].astype(str).tolist()
+            
+            # 2. Tìm khách hàng trong Odoo
+            partners = env['res.partner'].search_read(
+                [('x_unique_id', 'in', current_ids)], 
+                ['id', 'x_unique_id']
+            )
+            # Map: { '0000f46a...': 1234 }
+            partner_map = {p['x_unique_id']: p['id'] for p in partners}
+            
+            # 3. Duyệt và Update
+            records = df.to_dict('records')
+            chunk_updates = 0
+            
+            for row in records:
+                unique_id = str(row.get('customer_unique_id'))
+                partner_id = partner_map.get(unique_id)
+                
+                # Nếu không tìm thấy khách hàng trong DB thì bỏ qua
+                if not partner_id:
+                    continue
+                    
+                # Chuẩn bị dữ liệu update
+                # Mapping các trường mới từ CSV vào các field Odoo (giả định bạn đã tạo field x_feat_...)
+                vals = {
+                    # Cập nhật Segment (ép kiểu int)
+                    'x_feat_segment': int(float(row.get('segment', 0))),
+                    
+                    # Cập nhật Gap (ép kiểu float)
+                    'x_feat_personal_avg_gap': float(row.get('personal_avg_gap', 0)),
+                    'x_feat_category_avg_gap': float(row.get('category_avg_gap', 0)),
+                    
+                    # Cập nhật Category (nếu cần thiết, ghi đè giá trị cũ)
+                    'x_feat_product_category_name_english_last': str(row.get('product_category_name_english', '')),
+                }
+                
+                try:
+                    env['res.partner'].browse(partner_id).write(vals)
+                    chunk_updates += 1
+                    total_updated += 1
+                except Exception as e:
+                    # Log lỗi nhỏ nếu cần, hoặc pass để chạy tiếp
+                    pass
+            
+            # 4. Commit transaction sau mỗi chunk
+            env.cr.commit()
+            _logger.info(f"   -> Đã cập nhật bổ sung {chunk_updates} khách hàng.")
+            
+            # Giải phóng bộ nhớ
+            del df
+            del records
+            del partner_map
+            del partners
+            gc.collect() 
+
+        _logger.info(f"========================================================")
+        _logger.info(f"HOÀN TẤT UPDATE BỔ SUNG! TỔNG CỘNG: {total_updated}")
+        _logger.info(f"========================================================")
+
+    except Exception as e:
+        _logger.error(f"Lỗi trong quá trình import bổ sung: {e}", exc_info=True)
 
 # --- ĐIỂM BẮT ĐẦU THỰC THI SCRIPT ---
 # Code này sẽ tự động chạy khi được đưa vào odoo-bin shell
