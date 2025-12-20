@@ -472,3 +472,95 @@ class ChurnPrediction(models.Model):
                 'sticky': False,
             }
         }
+
+    def action_send_ai_explanation_email(self):
+        """
+        Action gửi email phân tích AI (Phiên bản Render Thủ Công để sửa lỗi hiển thị).
+        """
+        self.ensure_one()
+        import os # Cần import này để lấy biến môi trường
+
+        # --------------------------------------------------------------------------
+        # BƯỚC a: KIỂM TRA ĐIỀU KIỆN (Giữ nguyên)
+        # --------------------------------------------------------------------------
+        _logger.info(">>> [Email AI] Bắt đầu gửi email phân tích cho KH: %s", self.customer_id.name)
+
+        if not self.shap_ai_explanation:
+            raise UserError(_("Chưa có nội dung phân tích AI. Vui lòng chạy 'Explain with AI' trước."))
+
+        if not self.customer_id or not self.customer_id.email:
+            raise UserError(_("Khách hàng này không có địa chỉ email hợp lệ."))
+
+        # --------------------------------------------------------------------------
+        # BƯỚC b: XÁC ĐỊNH TEMPLATE (Giữ nguyên logic)
+        # --------------------------------------------------------------------------
+        customer_segment = self.customer_id.x_feat_segment
+        template_map = {
+            0: 'ChurnPredictor.email_template_ai_segment_0',
+            1: 'ChurnPredictor.email_template_ai_segment_1',
+            2: 'ChurnPredictor.email_template_ai_segment_2',
+            3: 'ChurnPredictor.email_template_ai_segment_3',
+            4: 'ChurnPredictor.email_template_ai_segment_4',
+        }
+        template_xml_id = template_map.get(customer_segment)
+        
+        if not template_xml_id:
+            raise UserError(_("Không tìm thấy mẫu email cho segment '%s'.", customer_segment))
+
+        try:
+            template = self.env.ref(template_xml_id)
+        except ValueError:
+            raise UserError(_("Template '%s' không tồn tại.", template_xml_id))
+            
+        # --------------------------------------------------------------------------
+        # BƯỚC c: RENDER VÀ GỬI EMAIL THỦ CÔNG (ĐÃ SỬA ĐỔI)
+        # --------------------------------------------------------------------------
+        try:
+            # 1. Render Subject và Body
+            # Lúc này body sẽ chứa chuỗi "__AI_HTML_CONTENT__" thay vì lỗi code
+            rendered_subject = template._render_template(template.subject, 'churn.prediction', [self.id])[self.id]
+            rendered_body = template._render_template(template.body_html, 'churn.prediction', [self.id])[self.id]
+
+            # 2. THAY THẾ PLACEHOLDER BẰNG HTML THẬT
+            # Đây là bước quan trọng để HTML hiển thị đẹp mà không bị lỗi safe_eval
+            if self.shap_ai_explanation:
+                # Đảm bảo nội dung thay thế là chuỗi (string)
+                ai_html = str(self.shap_ai_explanation)
+                rendered_body = rendered_body.replace('__AI_HTML_CONTENT__', ai_html)
+            
+            # 3. Lấy email người gửi từ Docker
+            sender_email = os.environ.get('SMTP_USER')
+            if not sender_email:
+                sender_email = 'noreply@yourcompany.com'
+
+            # 4. Tạo mail.mail
+            mail_values = {
+                'subject': rendered_subject,
+                'body_html': rendered_body, 
+                'email_to': self.customer_id.email,
+                'email_from': f'"{self.env.user.name} (AI System)" <{sender_email}>',
+                'author_id': self.env.user.partner_id.id,
+                'state': 'outgoing',
+                'auto_delete': True,
+            }
+
+            # 5. Gửi
+            mail = self.env['mail.mail'].sudo().create(mail_values)
+            mail.send(raise_exception=False)
+            
+            _logger.info("Đã gửi email AI (Template: %s) tới %s", template_xml_id, self.customer_id.email)
+
+        except Exception as e:
+            _logger.error("Lỗi gửi mail: %s", e)
+            raise UserError(_("Lỗi hệ thống khi gửi mail: %s", e))
+
+        # --------------------------------------------------------------------------
+        # BƯỚC d: GHI LOG CHATTER (Giữ nguyên)
+        # --------------------------------------------------------------------------
+        self.customer_id.message_post(
+            body=_("Email phân tích AI đã được gửi tới %s.", self.customer_id.email),
+            subtype_xmlid='mail.mt_note'
+        )
+
+        return True
+    

@@ -1,13 +1,8 @@
 /** @odoo-module */
-
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ProfileCard } from "../profile_card/profile_card";
-// === UPDATE 1: Import component ChartRenderer mà chúng ta đã hoàn thiện ở Bước 1 ===
 import { ChartRenderer } from "../chart_renderer/chart_renderer";
-
-// === UPDATE 2: Dọn dẹp các import không còn cần thiết từ OWL ===
-// Chúng ta không cần onMounted, onWillDestroy, useRef nữa vì ChartRenderer sẽ xử lý chúng.
 const { Component, onWillStart, useState, markup } = owl;
 
 export class CustomerDashboard extends Component {
@@ -15,6 +10,7 @@ export class CustomerDashboard extends Component {
         this.actionService = useService("action");
         this.orm = useService("orm");
         this.notification = useService("notification");
+        this.dialog = useService("dialog");
         this.customerId = this.props.action.context.active_id;
         
         // === UPDATE 3: Dọn dẹp setup() và cập nhật state ===
@@ -35,6 +31,7 @@ export class CustomerDashboard extends Component {
             interactionChartConfig: null, 
             selectedEvent: null,
             isGeneratingExplanation: false,
+            isSendingEmail: false, 
         });
 
         onWillStart(async () => {
@@ -187,6 +184,43 @@ export class CustomerDashboard extends Component {
             );
         } finally {
             this.state.isGeneratingExplanation = false; // Tắt trạng thái loading
+        }
+    }
+
+    async onSendEmailClick() {
+        if (!this.state.latestPrediction || !this.state.latestPrediction.id) {
+            this.notification.add("No prediction selected.", { type: 'warning' });
+            return;
+        }
+
+        // SỬ DỤNG window.confirm() - TƯƠNG THÍCH 100% VỚI MỌI PHIÊN BẢN
+        const isConfirmed = window.confirm("Are you sure you want to send this AI analysis directly to the customer?");
+        
+        if (!isConfirmed) {
+            return; // Người dùng đã nhấn "Cancel"
+        }
+
+        this.state.isSendingEmail = true;
+
+        try {
+            await this.orm.call(
+                'churn.prediction',
+                'action_send_ai_explanation_email',
+                [[this.state.latestPrediction.id]]
+            );
+
+            this.notification.add("AI analysis email has been sent successfully!", {
+                type: 'success',
+                title: 'Email Sent'
+            });
+
+        } catch (error) {
+            this.notification.add(
+                error.data?.message || "An unknown error occurred while sending the email.",
+                { type: 'danger', title: 'Email Failed' }
+            );
+        } finally {
+            this.state.isSendingEmail = false;
         }
     }
 }

@@ -1,0 +1,85 @@
+@startuml SystemArchitecture_ChurnPredictor
+
+!theme spacelab
+
+' Set component styling for clarity
+skinparam actorStyle awesome
+skinparam rectangle {
+    backgroundColor #FFFFFF
+    borderColor #333333
+    borderThickness 2
+    shadowing false
+}
+skinparam component {
+    backgroundColor #F8F9FA
+    borderColor #017E84
+    borderThickness 1.5
+    fontColor #333333
+}
+skinparam database {
+    backgroundColor #EBF8F8
+    borderColor #017E84
+}
+skinparam cloud {
+    backgroundColor #E6F0FF
+    borderColor #0055CC
+}
+
+' Define the main actor
+actor "Admin Manager" as Admin
+
+' Define the main system boundary
+rectangle "Churn Predictor System on Odoo 17" as OdooSystem {
+
+    rectangle "Odoo Frontend (Web UI)" as Frontend {
+        component "Dashboards\n(Tổng quan & Chi tiết)" as UIDashboards
+        component "Admin Panel\n(Quản lý Model)" as UIAdmin
+    }
+
+    rectangle "Odoo Backend (Server)" as Backend {
+        component "Churn Predictor Module" as ChurnModule {
+            component "RPC Methods" as RPC
+            component "Cron Jobs\n(Dự đoán hàng ngày)" as Cron
+            component "AI Model Mgmt\n(Load/Deploy Model)" as ModelMgmt
+        }
+        
+        artifact "Prediction Model\n(.joblib)" as ModelFile
+        database "PostgreSQL Database" as DB {
+            storage "Customer & Sales Data" as CoreData
+            storage "Prediction Results\n(churn.prediction)" as PredictionData
+        }
+    }
+}
+
+' Define External Services
+cloud "Google AI Platform" as GoogleAI {
+    component "Google Gemini API" as GeminiAPI
+}
+
+cloud "Kaggle Platform" as Kaggle {
+    component "Kaggle Kernel\n(Retraining Script)" as KaggleKernel
+    storage "Training Dataset\n(.csv)" as KaggleData
+}
+
+' Define Relationships and Data Flows
+
+' User <-> Odoo System
+Admin ..> Frontend : "1. Tương tác qua trình duyệt\n(Xem Dashboard, Bấm nút...)"
+
+' Frontend <-> Backend
+Frontend <-down-> Backend : "2. Odoo RPC Calls"
+
+' Backend Components Interactions
+Backend -(0- DB : "3. Truy vấn & Ghi dữ liệu (SQL)"
+ChurnModule .up.> ModelFile : "4. Load Model để dự đoán"
+ModelMgmt .down.> ModelFile : "9. Deploy Model mới"
+
+' Odoo <-> External Services
+ChurnModule -right-> GoogleAI : "5. Gửi Prompt (SHAP, context...)\n(REST API)"
+GoogleAI -left-> ChurnModule : "6. Trả về Giải thích AI (JSON)"
+
+ChurnModule -right-> Kaggle : "7. Trigger Retrain (Upload CSV)\n(Kaggle API)"
+Kaggle -left-> ChurnModule : "8. Tải về Model .joblib mới\n(Kaggle API)"
+
+
+@enduml

@@ -23,7 +23,7 @@ services:
     #   - SYS_TIME
     image: churn-predictor
     depends_on:
-      - postgres # Đảm bảo service postgres khởi động trước odoo
+      - postgres
     ports:
       - "8069:8069"
       - "8071:8071"
@@ -31,21 +31,23 @@ services:
       HOST: postgres
       PORT: 5432
       USER: odoo
-      PASSWORD: postgres123 # Phải khớp với mật khẩu Postgres
-      PGDATABASE: ChurnPredictor_v2 # Tên DB sẽ restore vào
-      # Tùy chọn: ADMIN_PASSWORD giúp quản lý DB qua UI dễ hơn
+      PASSWORD: postgres123
+      PGDATABASE: ChurnPredictor_v2
       ADMIN_PASSWORD: admin123
       TZ: Asia/Ho_Chi_Minh
-      # Đường dẫn thư viện (Khớp với Dockerfile đã tối ưu ở câu trả lời trước)
-      # Nếu bạn dùng Dockerfile cũ chưa tối ưu, sửa thành: /usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1
       LD_PRELOAD: /usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1
 
-      # Thời gian bạn muốn Odoo "nhìn thấy"
-      # Định dạng: "YYYY-MM-DD HH:MM:SS"
       FAKETIME: "2018-10-18 18:56:00"
 
-      # Mẹo: Thêm dòng này để tránh Odoo bị lag/treo khi dùng fake time
       DONT_FAKE_MONOTONIC: 1
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: 22520622@gm.uit.edu.vn
+      SMTP_PASSWORD: fnkt csqd theb aazj
+      SMTP_ENCRYPTION: tls
+      
+      # Tham số nhận báo cáo (Cấp 2) - Bạn cần đảm bảo nó tồn tại
+      CHURN_PREDICTOR_RECIPIENT_EMAIL: subinkhang102@gmail.com
     volumes:
       - odoo_web_data:/var/lib/odoo
       # Mount thư mục addon tùy chỉnh
@@ -55,6 +57,7 @@ services:
       - ./db_backups:/mnt/odoo_backups_for_restore
       # Tùy chọn: mount file cấu hình odoo.conf
       - ./odoo.conf:/etc/odoo/odoo.conf
+    # command: --config /etc/odoo/odoo.conf --addons-path=/usr/lib/python3/dist-packages/odoo/addons -i base -d ChurnPredictor_v2
     command: --config /etc/odoo/odoo.conf --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons -i base -d ChurnPredictor_v2
     networks:
       - odoo-network

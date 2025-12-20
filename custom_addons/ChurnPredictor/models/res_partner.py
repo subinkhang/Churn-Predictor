@@ -20,7 +20,6 @@ class ResPartner(models.Model):
     _inherit = 'res.partner'
     
     prediction_count = fields.Integer(compute='_compute_prediction_count')
-    
     account_type = fields.Selection(
         [
             ('buyer', 'Buyer'),
@@ -30,7 +29,6 @@ class ResPartner(models.Model):
         default='buyer',
         help="Phân loại khách hàng là người mua hay nhà cung cấp."
     )
-    
     x_churn_risk_level = fields.Selection(
         [
             ('low', 'Low Risk'),
@@ -42,47 +40,26 @@ class ResPartner(models.Model):
         index=True, # Thêm index để truy vấn nhanh hơn
         help="The latest churn risk assessment for this customer."
     )
-    
     x_unique_id = fields.Char(string="Unique Customer ID", index=True, readonly=True)
-
-    # 1. NHÓM THANH TOÁN (PAYMENT)
     x_feat_payment_value_sum = fields.Float(string="Feat: Payment Value Sum", default=0.0)
     x_feat_payment_value_mean = fields.Float(string="Feat: Payment Value Mean", default=0.0)
     x_feat_payment_value_max = fields.Float(string="Feat: Payment Value Max", default=0.0)
     x_feat_payment_value_min = fields.Float(string="Feat: Payment Value Min", default=0.0)
-    
-    # 2. NHÓM GIAO HÀNG (DELIVERY)
     x_feat_delivery_days_mean = fields.Float(string="Feat: Delivery Days Mean", default=0.0)
     x_feat_delivery_days_max = fields.Float(string="Feat: Delivery Days Max", default=0.0)
     x_feat_delivery_delay_days_mean = fields.Float(string="Feat: Delivery Delay Mean", default=0.0)
     x_feat_delivery_delay_days_max = fields.Float(string="Feat: Delivery Delay Max", default=0.0)
-    
-    # 3. NHÓM ĐÁNH GIÁ (REVIEW)
     x_feat_review_score_mean = fields.Float(string="Feat: Review Score Mean", default=0.0)
     x_feat_review_score_min = fields.Float(string="Feat: Review Score Min", default=0.0)
     x_feat_review_score_std = fields.Float(string="Feat: Review Score Std", default=0.0)
-    
-    # 4. NHÓM SẢN PHẨM & TẦN SUẤT (ITEMS & RFM)
     x_feat_num_items_sum = fields.Float(string="Feat: Num Items Sum", default=0.0)
     x_feat_num_items_mean = fields.Float(string="Feat: Num Items Mean", default=0.0)
     x_feat_frequency = fields.Integer(string="Feat: Frequency", default=0)
     x_feat_recency = fields.Integer(string="Feat: Recency (Days)", default=0)
-    
-    # 5. NHÓM PHÂN LOẠI (CATEGORICAL - RAW VALUE)
-    # Chiến thuật: Thay vì tạo 100 trường One-Hot (như x_feat_state_SP, x_feat_state_RJ...)
-    # Ta chỉ cần lưu GIÁ TRỊ GỐC. Code Python khi chạy predict sẽ tự động One-Hot Encoding nó.
-    # Điều này giúp bạn import CSV dễ hơn rất nhiều (chỉ cần map cột text vào đây).
-    
     x_feat_payment_type_last = fields.Char(string="Feat: Last Payment Type", help="Ví dụ: credit_card, boleto...")
     x_feat_customer_state_last = fields.Char(string="Feat: Last Customer State", help="Ví dụ: SP, RJ, MG...")
     x_feat_product_category_name_english_last = fields.Char(string="Feat: Last Product Category", help="Ví dụ: health_beauty...")
-
-    # 6. CỜ ĐÁNH DẤU (FLAG)
-    # Dùng để code biết nên lấy dữ liệu từ các trường x_feat_ này hay tự tính toán
     x_is_imported_data = fields.Boolean(string="Is Imported Data", default=False)
-
-    # 7. NHÓM DỮ LIỆU BỔ SUNG (SEGMENTATION & GAP)
-    # Thêm mới theo yêu cầu import
     x_feat_personal_avg_gap = fields.Float(string="Feat: Personal Avg Gap", default=0.0)
     x_feat_category_avg_gap = fields.Float(string="Feat: Category Avg Gap", default=0.0)
     x_feat_segment = fields.Integer(string="Feat: Customer Segment", default=0, help="Phân khúc khách hàng (0, 1, 2, 3, 4...)")
@@ -182,7 +159,6 @@ class ResPartner(models.Model):
                     category_name_last = re.sub(r'\\s+', '_', leaf_category_name).lower()
             
             if customer.x_is_imported_data:
-                _logger.info(f"Khách hàng {customer.name} dùng dữ liệu IMPORT (Feature Store)")
                 
                 # Lấy trực tiếp từ các trường x_feat_
                 raw_data = {
@@ -272,7 +248,6 @@ class ResPartner(models.Model):
         final_input_df = final_input_df.astype(float) 
         final_input_df = final_input_df[model_columns]
 
-        _logger.info("DataFrame cuối cùng trước khi dự đoán (shape: %s):\n%s", final_input_df.shape, final_input_df.head().to_string())
 
         # --- BƯỚC 4 & 5: DỰ ĐOÁN, SHAP, LƯU KẾT QUẢ ---
         try:
@@ -280,7 +255,6 @@ class ResPartner(models.Model):
             probabilities = model.predict_proba(final_input_df)[:, 1]
         except Exception as e:
             _logger.error("Lỗi khi dự đoán: %s", e, exc_info=True)
-            _logger.error("Dtypes của final_input_df ngay trước khi lỗi:\n%s", final_input_df.dtypes)
             raise UserError(_("Đã xảy ra lỗi trong quá trình dự đoán của mô hình: %s", str(e)))
 
         # === BƯỚC 4.5: TÍNH TOÁN VÀ TẠO BIỂU ĐỒ SHAP ===
@@ -288,7 +262,6 @@ class ResPartner(models.Model):
         # <<< CẬP NHẬT: Tạo list để chứa dữ liệu JSON >>>
         shap_json_outputs = []
         try:
-            _logger.info("Bắt đầu tính toán SHAP values.")
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(final_input_df)
             
@@ -320,8 +293,6 @@ class ResPartner(models.Model):
                 shap_json_outputs.append(json.dumps(shap_raw_data))
                 # ----------------------------------------------------------------
 
-            _logger.info("Hoàn thành tính toán và tạo %d biểu đồ SHAP và %d bản ghi dữ liệu JSON.", len(shap_html_outputs), len(shap_json_outputs))
-
         except Exception as e:
             _logger.error("LỖI CHI TIẾT KHI TẠO BIỂU ĐỒ/DỮ LIỆU SHAP: %s", repr(e))
             raise UserError(_("Đã xảy ra lỗi trong quá trình tính toán giải thích SHAP. Chi tiết: %s", repr(e)))
@@ -336,15 +307,8 @@ class ResPartner(models.Model):
             
             shap_html_content = shap_html_outputs[i]
             shap_data_json_string = shap_json_outputs[i]
-
-            _logger.info("--- [DEBUG] KIỂM TRA DỮ LIỆU TRƯỚC KHI GỌI .create() ---")
-            _logger.info("Customer: %s", customer.name)
-            _logger.info("Kiểu dữ liệu của biến shap_data_json_string: %s", type(shap_data_json_string))
-            _logger.info("Độ dài chuỗi JSON: %d", len(shap_data_json_string) if isinstance(shap_data_json_string, str) else 0)
             
             # In ra 1000 ký tự đầu tiên để kiểm tra cấu trúc mà không làm ngập log
-            _logger.info("Nội dung 1000 ký tự đầu của JSON string: \n%s", (shap_data_json_string[:1000] if isinstance(shap_data_json_string, str) else "Dữ liệu không phải chuỗi"))
-            # ---------------------------------
 
             encoded_shap_html_bytes = base64.b64encode(shap_html_content.encode('utf-8'))
 
@@ -372,8 +336,6 @@ class ResPartner(models.Model):
             message = f"Successfully created {len(records_to_show)} prediction(s)."
         else:
             message = "No valid orders found for this customer to make a prediction."
-
-        _logger.info(">>>>> CHUẨN BỊ TRẢ VỀ THÔNG BÁO: %s <<<<<", message)
         
         return {
             'type': 'ir.actions.client',
@@ -434,246 +396,46 @@ class ResPartner(models.Model):
                     )
                     
                     # === GỌI LOGIC GỬI EMAIL TỪ ĐÂY ===
-                    try:
-                        partner._send_high_risk_alert_email()
-                    except Exception as e:
-                        _logger.error(
-                            "Lỗi khi gửi email cảnh báo nguy cơ cao cho khách hàng %s: %s",
-                            partner.name, e
-                        )
+                    # try:
+                    #     partner._send_high_risk_alert_email()
+                    # except Exception as e:
+                    #     _logger.error(
+                    #         "Lỗi khi gửi email cảnh báo nguy cơ cao cho khách hàng %s: %s",
+                    #         partner.name, e
+                    #     )
         return res
-
-    def _send_high_risk_alert_email(self):
-        """
-        Phương thức được cập nhật để xây dựng HTML trong code và gửi đi,
-        dựa trên kiến trúc mới.
-        """
-        self.ensure_one()
-
-        if not self.user_id or not self.user_id.email:
-            _logger.info("Bỏ qua gửi email cho KH '%s' vì không có Salesperson hoặc email.", self.name)
-            return
-
-        _logger.info("Chuẩn bị gửi email cảnh báo nguy cơ cao cho Salesperson của KH '%s'.", self.name)
+    
+    def _create_high_risk_activities(self, high_risk_preds):
+        """Tạo activity cho sale nếu khách hàng nguy cơ cao"""
+        if not high_risk_preds: return
         
-        template = self.env.ref('ChurnPredictor.email_template_high_risk_alert')
-        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
-
-        # --- Xây dựng các chuỗi HTML trong Python ---
-        
-        # 1. Chi tiết thông tin khách hàng
-        customer_details_html = f"""
-            <div style="border: 1px solid #ccc; padding: 15px; margin: 15px 0; background-color: #f9f9f9;">
-                <strong>Tên khách hàng:</strong> {self.name} <br/>
-                <strong>Email:</strong> {self.email or 'N/A'} <br/>
-                <strong>Số điện thoại:</strong> {self.phone or 'N/A'} <br/>
-                <strong>Nhân viên phụ trách:</strong> {self.user_id.name or 'Chưa có'}
-            </div>
-        """
-        
-        # 2. Nút bấm hành động (link đến form khách hàng)
-        customer_form_url = f"{base_url}/web#id={self.id}&model=res.partner&view_type=form"
-        action_button_html = f"""
-            <div style="text-align: center; margin: 20px 0;">
-                <a href="{customer_form_url}"
-                   style="display: inline-block; padding: 10px 20px; background-color: #d9534f; color: #fff; text-decoration: none; border-radius: 5px;">
-                    Xem chi tiết Khách hàng
-                </a>
-            </div>
-        """
-        
-        # --- Chuẩn bị context để render template ---
-        render_context = {
-            'recipient_email': self.user_id.email,
-            'salesperson_name': self.user_id.name,
-            'customer_details_html': customer_details_html,
-            'action_button_html': action_button_html,
-        }
-
-        # Render và gửi email (sử dụng phương thức render thủ công đáng tin cậy)
-        rendered_subject = template.with_context(**render_context)._render_template(template.subject, 'res.partner', [self.id])[self.id]
-        rendered_body = template.with_context(**render_context)._render_template(template.body_html, 'res.partner', [self.id])[self.id]
-
-        mail_values = {
-            'subject': rendered_subject,
-            'body_html': rendered_body,
-            'email_to': self.user_id.email,
-            'email_from': template.email_from,
-            'author_id': self.env.user.partner_id.id,
-            'auto_delete': True,
-        }
-        
-        mail = self.env['mail.mail'].sudo().create(mail_values)
-        mail.send()
-        
-        _logger.info("Đã đưa email cảnh báo cho KH '%s' vào hàng đợi để gửi đến %s.", self.name, self.user_id.email)
-
-    @api.model
-    def _cron_predict_churn(self):
-        _logger.info("===== BẮT ĐẦU CRON JOB DỰ ĐOÁN CHURN HÀNG NGÀY =====")
-        start_time = fields.Datetime.now()
-        
-        customers_processed_count = 0
-        high_risk_predictions_list = []
-
-        # 1. Tìm các khách hàng mục tiêu
-        time_threshold = start_time - timedelta(hours=24)
-        recent_orders = self.env['sale.order'].search([
-            ('state', 'in', ['sale', 'done']),
-            ('date_order', '>=', time_threshold),
-        ])
-        customers_to_predict = recent_orders.mapped('partner_id')
-        customers_processed_count = len(customers_to_predict)
-
-        if not customers_to_predict:
-            _logger.info("Không tìm thấy khách hàng nào có đơn hàng mới trong 24h qua.")
-        else:
-            _logger.info(f"Tìm thấy {customers_processed_count} khách hàng cần dự đoán: {[p.name for p in customers_to_predict]}")
-            # 2. Gọi logic dự đoán
-            try:
-                customers_to_predict.action_predict_churn()
-                _logger.info("Hoàn thành việc tạo dự đoán cho các khách hàng mục tiêu.")
-            except Exception as e:
-                _logger.error(f"Lỗi xảy ra trong quá trình dự đoán của cron job: {e}", exc_info=True)
+        activity_type_id = self.env.ref('mail.mail_activity_data_todo').id
+        count = 0
+        for pred in high_risk_preds:
+            customer = pred.customer_id
+            if not customer.user_id: continue
             
-            # 3. Tạo cảnh báo và thu thập thông tin khách hàng nguy cơ cao
-            prediction_threshold = start_time - timedelta(minutes=1)
-            high_risk_predictions = self.env['churn.prediction'].search([
-                ('create_date', '>=', prediction_threshold), ('is_high_risk', '=', 1),
-                ('customer_id', 'in', customers_to_predict.ids)
+            # Check trùng activity
+            existing = self.env['mail.activity'].search_count([
+                ('res_id', '=', customer.id),
+                ('res_model', '=', 'res.partner'),
+                ('summary', '=', 'Nguy cơ Churn cao!')
             ])
-            high_risk_predictions_list = high_risk_predictions
-
-            if high_risk_predictions:
-                _logger.info(f"Phát hiện {len(high_risk_predictions)} khách hàng nguy cơ cao. Bắt đầu tạo cảnh báo Activity.")
-                activity_type_todo_id = self.env.ref('mail.mail_activity_data_todo').id
-                for pred in high_risk_predictions:
-                    customer = pred.customer_id
-                    if customer.user_id:
-                        self.env['mail.activity'].create({
-                            'res_id': customer.id, 'res_model_id': self.env.ref('base.model_res_partner').id,
-                            'activity_type_id': activity_type_todo_id, 'summary': 'Nguy cơ Churn cao!',
-                            'note': f"<p>Khách hàng <a href='/web#id={customer.id}&model=res.partner&view_type=form' style='font-weight:bold;'>{customer.name}</a> "
-                                    f"được dự đoán có nguy cơ churn cao với xác suất là <strong>{pred.probability:.2f}%</strong>.</p>"
-                                    f"<p>Vui lòng liên hệ và chăm sóc khách hàng này ngay.</p>",
-                            'user_id': customer.user_id.id,
-                        })
-        # ==============================================================================
-        # === PHẦN 4 ĐÃ ĐƯỢC SỬA LỖI DỨT ĐIỂM: RENDER THỦ CÔNG ===
-        # ==============================================================================
-        try:
-            _logger.info("Chuẩn bị gửi email báo cáo tóm tắt.")
-            recipient_email = self.env['ir.config_parameter'].sudo().get_param('churn_predictor.recipient_email')
             
-            if not recipient_email:
-                _logger.warning("Chưa cấu hình email người nhận (churn_predictor.recipient_email). Sẽ không gửi email báo cáo.")
-                return
-
-            template = self.env.ref('ChurnPredictor.email_template_churn_cron_summary')
+            _logger.info(f"Khách hàng {customer.name}: Tồn tại {existing} activity nguy cơ cao.")
             
-            high_risk_details_for_email = [{
-                'id': pred.customer_id.id, 'name': pred.customer_id.name,
-                'probability': pred.probability,
-                'salesperson': pred.customer_id.user_id.name if pred.customer_id.user_id else None
-            } for pred in high_risk_predictions_list]
-            
-            # Lấy chuỗi tên các khách hàng đã xử lý
-            processed_customer_names_str = ', '.join(customers_to_predict.mapped('name'))
-
-            # === XÂY DỰNG CHUỖI HTML HOÀN CHỈNH TRONG PYTHON ===
-            
-            # 1. Xây dựng bảng chi tiết khách hàng nguy cơ cao
-            base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
-            high_risk_table_html = ''
-            if high_risk_details_for_email:
-                table_rows = []
-                for customer in high_risk_details_for_email:
-                    # Link đến form xem chi tiết khách hàng
-                    customer_form_url = f"{base_url}/web?#id={customer.get('id')}&model=res.partner&view_type=form"
-                    # Link đến dashboard chi tiết của khách hàng
-                    customer_dashboard_url = f"{base_url}/web?#action=churn_predictor.customer_dashboard&amp;active_id={customer.get('id')}&amp;cids=1"
-                    
-                    row = f"""
-                        <tr>
-                            <td style="padding: 8px;">
-                                <a href="{customer_form_url}">{customer.get('name')}</a>
-                            </td>
-                            <td style="padding: 8px; text-align: center;">{customer.get('probability'):.2f} %</td>
-                            <td style="padding: 8px;">{customer.get('salesperson') or 'N/A'}</td>
-                            <td style="padding: 8px; text-align: center;">
-                                <a href="{customer_dashboard_url}" style="color: #0d6efd; text-decoration: underline;">View Dashboard</a>
-                            </td>
-                        </tr>
-                    """
-                    table_rows.append(row)
-
-                high_risk_table_html = f"""
-                    <h3 style="margin-top: 20px;">Chi tiết các khách hàng có nguy cơ cao:</h3>
-                    <table border="1" style="border-collapse: collapse; width: 100%;">
-                        <thead style="background-color: #f2f2f2;">
-                            <tr>
-                                <th style="padding: 8px;">Tên Khách Hàng</th>
-                                <th style="padding: 8px;">Xác suất Churn (%)</th>
-                                <th style="padding: 8px;">Nhân viên phụ trách</th>
-                                <th style="padding: 8px;">Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {''.join(table_rows)}
-                        </tbody>
-                    </table>
-                """
-            
-            # 2. Xây dựng button dashboard tổng quan
-            overview_dashboard_url = f"{base_url}/web?#action=970&amp;cids=1&amp;menu_id=740"
-            overview_button_html = f"""
-                <div style="text-align: center; margin-top: 30px; margin-bottom: 30px;">
-                    <a href="{overview_dashboard_url}" 
-                       style="background-color: #0d6efd; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold;">
-                        View Overview Dashboard
-                    </a>
-                </div>
-            """
-            
-            # Cập nhật context
-            render_context = {
-                'start_time': start_time,
-                'end_time': fields.Datetime.now(),
-                'customers_processed': customers_processed_count,
-                'high_risk_found': len(high_risk_predictions_list),
-                'processed_customer_names': processed_customer_names_str,
-                'high_risk_table_html': high_risk_table_html,
-                'overview_button_html': overview_button_html,
-            }
-            
-            # Lấy ID của một đối tượng partner bất kỳ để làm tham chiếu render
-            res_id = self.env.user.partner_id.id or self.env.ref('base.main_partner').id
-            
-            # Sử dụng phương thức _render_template để render thủ công
-            rendered_subject = template.with_context(**render_context)._render_template(template.subject, 'res.partner', [res_id])[res_id]
-            rendered_body = template.with_context(**render_context)._render_template(template.body_html, 'res.partner', [res_id])[res_id]
-
-            # Xây dựng dictionary giá trị cho email
-            mail_values = {
-                'subject': rendered_subject,
-                'body_html': rendered_body,
-                'email_to': recipient_email,
-                'email_from': template.email_from,
-                'author_id': self.env.user.partner_id.id,
-                'auto_delete': True, # Tự động xóa email khỏi hàng đợi sau khi gửi
-            }
-            
-            # Tạo và gửi email ngay lập tức
-            mail = self.env['mail.mail'].sudo().create(mail_values)
-            mail.send()
-            
-            _logger.info(f"Đã gửi thành công email báo cáo tóm tắt đến {recipient_email}.")
-
-        except Exception as e:
-            _logger.error(f"Lỗi khi gửi email báo cáo cron job: {e}", exc_info=True)
-        finally:
-            _logger.info("===== KẾT THÚC CRON JOB DỰ ĐOÁN CHURN HÀNG NGÀY =====")
-            
+            # if existing == 0:
+            #     self.env['mail.activity'].create({
+            #         'res_id': customer.id,
+            #         'res_model_id': self.env.ref('base.model_res_partner').id,
+            #         'activity_type_id': activity_type_id,
+            #         'summary': 'Nguy cơ Churn cao!',
+            #         'note': f"Hệ thống phát hiện rủi ro cao: {pred.probability:.2f}%",
+            #         'user_id': customer.user_id.id,
+            #     })
+            #     count += 1
+        _logger.info(f"Đã tạo {count} activities mới.")
+        
     @api.model
     def get_interaction_timeline_data(self, customer_id):
         """
@@ -800,18 +562,16 @@ class ResPartner(models.Model):
             'chart_data': chart_data,
             'insights': insights
         }
-        
-    
+
     def _send_cron_report_email(self, high_risk_predictions, total_processed_count, start_time):
         """
         Hàm phụ trợ: Chuyên trách việc dựng HTML và gửi email báo cáo sau khi chạy Cron.
         Được tách ra để tái sử dụng cho cả Cron thường và Cron Full Scan.
         """
         try:
-            _logger.info(">>> [Email Report] Bắt đầu quy trình gửi email báo cáo.")
-            
             # 1. Lấy cấu hình email người nhận
-            recipient_email = self.env['ir.config_parameter'].sudo().get_param('churn_predictor.recipient_email')
+            # recipient_email = self.env['ir.config_parameter'].sudo().get_param('churn_predictor.recipient_email')
+            recipient_email = os.environ.get('CHURN_PREDICTOR_RECIPIENT_EMAIL')
             
             if not recipient_email:
                 _logger.warning("Chưa cấu hình 'churn_predictor.recipient_email'. Bỏ qua việc gửi email.")
@@ -824,7 +584,7 @@ class ResPartner(models.Model):
             if high_risk_predictions:
                 table_rows = []
                 # Giới hạn hiển thị 20 khách hàng đầu tiên để email không quá dài
-                display_limit = 20
+                display_limit = 15
                 
                 for pred in high_risk_predictions[:display_limit]:
                     customer = pred.customer_id
@@ -899,11 +659,11 @@ class ResPartner(models.Model):
 
             # 3. Chuẩn bị Button "Overview Dashboard"
             # Bạn cần thay thế 'menu_id=...' bằng ID menu thực tế của bạn nếu muốn link chính xác hơn
-            overview_dashboard_url = f"{base_url}/web#action=churn_predictor.action_churn_dashboard_main" 
+            overview_dashboard_url = f"{base_url}/web#action=ChurnPredictor.action_owl_churn_dashboard" 
             overview_button_html = f"""
                 <div style="text-align: center; margin: 30px 0;">
                     <a href="{overview_dashboard_url}" 
-                       style="background-color: #017e84; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+                        style="background-color: #017e84; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
                         Mở Dashboard Tổng Quan
                     </a>
                 </div>
@@ -934,18 +694,22 @@ class ResPartner(models.Model):
             rendered_body = template.with_context(**render_context)._render_template(
                 template.body_html, 'res.partner', [ref_id]
             )[ref_id]
+            
+            sender_email = recipient_email
 
             # 6. Tạo và gửi Email
             mail_values = {
                 'subject': rendered_subject,
                 'body_html': rendered_body,
                 'email_to': recipient_email,
-                'email_from': template.email_from or self.env.user.email,
+                'email_from': f'"{self.env.user.name}" <{sender_email}>',
                 'author_id': self.env.user.partner_id.id,
-                'auto_delete': True, # Xóa khỏi danh sách chờ sau khi gửi xong
+                'state': 'outgoing', # Đặt trạng thái sẵn sàng gửi
+                'auto_delete': True,
             }
             
-            self.env['mail.mail'].sudo().create(mail_values).send()
+            mail = self.env['mail.mail'].sudo().create(mail_values)
+            mail.send(raise_exception=False)
             _logger.info(f">>> [Email Report] Đã gửi thành công tới {recipient_email}.")
 
         except Exception as e:
@@ -954,26 +718,21 @@ class ResPartner(models.Model):
     @api.model
     def _cron_predict_full_database_fast(self):
         """
-        CRON JOB: Quét toàn bộ 10,000+ khách hàng mỗi ngày.
-        ĐẶC ĐIỂM: 
-        - Độc lập hoàn toàn với action_predict_churn.
-        - KHÔNG tính toán SHAP (để tối ưu tốc độ).
-        - Chỉ lưu xác suất và kết quả Churn.
+        CRON JOB (TỐI ƯU): Quét toàn bộ DB, tái sử dụng logic lấy feature có sẵn.
+        - Không tính SHAP để tối ưu tốc độ.
+        - Chỉ lưu xác suất, kết quả Churn và gọi hàm báo cáo tổng hợp.
         """
-        _logger.info("===== BẮT ĐẦU CRON: FULL DATABASE FAST PREDICTION =====")
+        _logger.info("===== BẮT ĐẦU CRON: FULL DATABASE FAST PREDICTION (TỐI ƯU) =====")
         start_time = fields.Datetime.now()
         
-        # 1. Load Model (Copy logic load model để đảm bảo đồng bộ)
+        # 1. Load Model và Columns (Giữ nguyên logic của action_predict_churn)
         try:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             ml_assets_dir = os.path.join(current_dir, 'ml_assets')
             subfolders = [f for f in os.listdir(ml_assets_dir) if os.path.isdir(os.path.join(ml_assets_dir, f))]
             
-            if subfolders:
-                latest_version = sorted(subfolders)[-1]
-                model_path = os.path.join(ml_assets_dir, latest_version, 'churn_model.joblib')
-            else:
-                model_path = os.path.join(ml_assets_dir, 'churn_model.joblib')
+            latest_version_dir = os.path.join(ml_assets_dir, sorted(subfolders)[-1]) if subfolders else ml_assets_dir
+            model_path = os.path.join(latest_version_dir, 'churn_model.joblib')
 
             if not os.path.exists(model_path):
                 _logger.error("Không tìm thấy model để chạy Cron.")
@@ -981,13 +740,10 @@ class ResPartner(models.Model):
 
             model = joblib.load(model_path)
             
-            # Lấy danh sách cột feature
             if hasattr(model, 'feature_names_in_'):
                 model_columns = model.feature_names_in_.tolist()
             else:
-                columns_path = os.path.join(os.path.dirname(model_path), 'model_columns.pkl')
-                if not os.path.exists(columns_path):
-                    columns_path = os.path.join(ml_assets_dir, 'model_columns.pkl')
+                columns_path = os.path.join(latest_version_dir, 'model_columns.pkl')
                 with open(columns_path, 'rb') as f:
                     model_columns = pickle.load(f)
                     
@@ -995,167 +751,319 @@ class ResPartner(models.Model):
             _logger.error(f"Lỗi khởi tạo Model trong Cron: {e}")
             return
 
-        # 2. Tìm khách hàng cần dự đoán
-        # Lấy tất cả khách hàng Active (có dữ liệu import hoặc có đơn hàng)
+        # 2. Tìm tất cả khách hàng mục tiêu
         customers = self.search([
             ('active', '=', True),
             '|', ('x_is_imported_data', '=', True), ('sale_order_ids', '!=', False)
         ])
         
         _logger.info(f"Tổng số khách hàng cần quét: {len(customers)}")
-
         if not customers:
             return
 
-        # 3. Xử lý theo Batch (Lô) để tránh ngốn RAM nếu danh sách quá lớn
-        # Tuy nhiên với 10k khách, Python xử lý tốt. Ta làm vòng lặp thu thập dữ liệu.
-        
+        # --- BƯỚC 3: THU THẬP FEATURE HÀNG LOẠT (Tái sử dụng logic của bạn) ---
         customer_data_list = []
         valid_partners = []
 
         for customer in customers:
-            try:
-                # --- LOGIC TÍNH FEATURE (COPY TỪ action_predict_churn) ---
-                # Phải đảm bảo logic này GIỐNG HỆT hàm chính để kết quả nhất quán
-                
-                if customer.x_is_imported_data:
-                    # Dữ liệu Import
-                    raw_data = {
-                        'payment_value_sum': customer.x_feat_payment_value_sum,
-                        'payment_value_mean': customer.x_feat_payment_value_mean,
-                        'payment_value_max': customer.x_feat_payment_value_max,
-                        'payment_value_min': customer.x_feat_payment_value_min,
-                        'frequency': customer.x_feat_frequency,
-                        'recency': customer.x_feat_recency,
-                        'review_score_mean': customer.x_feat_review_score_mean,
-                        'review_score_min': customer.x_feat_review_score_min,
-                        'review_score_std': customer.x_feat_review_score_std,
-                        'delivery_days_mean': customer.x_feat_delivery_days_mean,
-                        'delivery_days_max': customer.x_feat_delivery_days_max,
-                        'delivery_delay_days_mean': customer.x_feat_delivery_delay_days_mean,
-                        'delivery_delay_days_max': customer.x_feat_delivery_delay_days_max,
-                        'num_items_sum': customer.x_feat_num_items_sum,
-                        'num_items_mean': customer.x_feat_num_items_mean,
-                        'payment_type_last': customer.x_feat_payment_type_last or '',
-                        'customer_state_last': customer.x_feat_customer_state_last or '',
-                        'product_category_name_english_last': customer.x_feat_product_category_name_english_last or '',
-                    }
-                else:
-                    # Dữ liệu Realtime (Tự tính toán)
-                    orders = self.env['sale.order'].search([('partner_id', '=', customer.id),('state', 'in', ['sale', 'done'])], order='date_order asc')
-                    if not orders: continue # Bỏ qua nếu không có đơn
-                    
-                    # ... (Phần code tính toán Realtime dài dòng của bạn đặt ở đây) ...
-                    # Để code gọn, tôi giả định bạn đã có logic tính toán gán vào raw_data giống hệt hàm cũ
-                    # Nếu bạn cần tôi paste lại toàn bộ logic realtime, hãy báo tôi.
-                    # Ở đây tôi demo placeholder:
-                    raw_data = {col: 0 for col in model_columns} 
-                    # ... (Bạn paste logic tính sum/mean/max vào đây nhé) ...
-
+            # Ưu tiên lấy dữ liệu đã có sẵn từ các trường x_feat_
+            if customer.x_is_imported_data:
+                raw_data = {
+                    'payment_value_sum': customer.x_feat_payment_value_sum,
+                    'payment_value_mean': customer.x_feat_payment_value_mean,
+                    'payment_value_max': customer.x_feat_payment_value_max,
+                    'payment_value_min': customer.x_feat_payment_value_min,
+                    'frequency': customer.x_feat_frequency,
+                    'recency': customer.x_feat_recency,
+                    'review_score_mean': customer.x_feat_review_score_mean,
+                    'review_score_min': customer.x_feat_review_score_min,
+                    'review_score_std': customer.x_feat_review_score_std,
+                    'delivery_days_mean': customer.x_feat_delivery_days_mean,
+                    'delivery_days_max': customer.x_feat_delivery_days_max,
+                    'delivery_delay_days_mean': customer.x_feat_delivery_delay_days_mean,
+                    'delivery_delay_days_max': customer.x_feat_delivery_delay_days_max,
+                    'num_items_sum': customer.x_feat_num_items_sum,
+                    'num_items_mean': customer.x_feat_num_items_mean,
+                    'payment_type_last': customer.x_feat_payment_type_last or '',
+                    'customer_state_last': customer.x_feat_customer_state_last or '',
+                    'product_category_name_english_last': customer.x_feat_product_category_name_english_last or '',
+                }
                 customer_data_list.append(raw_data)
                 valid_partners.append(customer)
-
-            except Exception as e:
-                _logger.warning(f"Lỗi tính feature cho khách {customer.name}: {e}")
+            else:
+                # Nếu không có dữ liệu import, bỏ qua để cron chạy nhanh
+                # Trong tương lai, có thể thêm logic tính toán nhẹ ở đây nếu cần
+                _logger.info(f"Bỏ qua khách hàng '{customer.name}' vì không phải dữ liệu import.")
                 continue
 
         if not customer_data_list:
-            _logger.info("Không có dữ liệu hợp lệ để dự đoán.")
+            _logger.info("Không có khách hàng nào có dữ liệu feature sẵn sàng để dự đoán.")
             return
 
-        # 4. Tạo DataFrame & Preprocessing
+        # 4. Tạo DataFrame & Preprocessing (Giống hệt logic của action_predict_churn)
         input_df = pd.DataFrame(customer_data_list)
         
-        # Numeric conversion
-        numeric_cols = ['payment_value_sum', 'payment_value_mean', 'payment_value_max', 'frequency', 'recency', 'review_score_mean', 'review_score_min', 'delivery_days_mean', 'delivery_delay_days_mean', 'num_items_sum']
+        numeric_cols = [col for col in model_columns if input_df.get(col) is not None and pd.api.types.is_numeric_dtype(input_df[col])]
         for col in numeric_cols:
-            if col in input_df.columns:
-                input_df[col] = pd.to_numeric(input_df[col], errors='coerce').fillna(0)
+             input_df[col] = pd.to_numeric(input_df[col], errors='coerce').fillna(0)
         
-        # One-Hot Encoding
-        prefixes = ['payment_type_last', 'customer_state_last', 'product_category_name_english_last']
-        cols_to_encode = [p for p in prefixes if p in input_df.columns]
-        if cols_to_encode:
-            input_df_encoded = pd.get_dummies(input_df, columns=cols_to_encode, prefix=cols_to_encode, dtype=float)
-        else:
-            input_df_encoded = input_df
+        categorical_feature_prefixes = ['payment_type_last', 'customer_state_last', 'product_category_name_english_last']
+        cols_to_encode = [p for p in categorical_feature_prefixes if p in input_df.columns]
+        input_df_encoded = pd.get_dummies(input_df, columns=cols_to_encode, prefix=cols_to_encode, dtype=float) if cols_to_encode else input_df
             
-        # Align Columns
         final_input_df = pd.DataFrame(columns=model_columns)
-        final_input_df = pd.concat([final_input_df, input_df_encoded], ignore_index=True)
-        final_input_df.fillna(0, inplace=True)
-        final_input_df = final_input_df.astype(float)
+        final_input_df = pd.concat([final_input_df, input_df_encoded], ignore_index=True).fillna(0)
         final_input_df = final_input_df[model_columns]
 
-        # 5. DỰ ĐOÁN (Predict Only - NO SHAP)
+        # 5. DỰ ĐOÁN HÀNG LOẠT (KHÔNG SHAP)
         try:
             predictions = model.predict(final_input_df)
             probabilities = model.predict_proba(final_input_df)[:, 1]
         except Exception as e:
-            _logger.error(f"Lỗi khi chạy model.predict: {e}")
+            _logger.error(f"Lỗi khi chạy model.predict hàng loạt: {e}")
             return
 
-        # 6. Lưu kết quả hàng loạt
-        # Sử dụng create multi-record nếu có thể, hoặc loop
+        # 6. LƯU KẾT QUẢ HÀNG LOẠT
         prediction_model = self.env['churn.prediction']
         high_risk_predictions_list = []
-
-        for i, customer in enumerate(valid_partners):
-            prob = probabilities[i] * 100
-            is_churn = predictions[i] == 1
-            
-            # Lưu bản ghi MỚI NHẤT (không có SHAP)
-            new_pred = prediction_model.create({
-                'customer_id': customer.id,
-                'prediction_result': 'churn' if is_churn else 'no_churn',
-                'probability': prob,
-                'shap_html': False,      # Rỗng
-                'shap_data_json': False, # Rỗng
-                'shap_ai_explanation': False 
-            })
-            
-            # Cập nhật mức độ rủi ro vào res.partner
-            customer.write({'x_churn_risk_level': new_pred.probability_level})
-            
-            if new_pred.is_high_risk:
-                high_risk_predictions_list.append(new_pred)
+        
+        # Dùng transaction để tăng tốc độ ghi dữ liệu
+        with self.env.cr.savepoint():
+            for i, customer in enumerate(valid_partners):
+                prob = probabilities[i] * 100
+                
+                # Tạo bản ghi dự đoán mới (không có SHAP)
+                new_pred = prediction_model.create({
+                    'customer_id': customer.id,
+                    'prediction_result': 'churn' if predictions[i] == 1 else 'no_churn',
+                    'probability': prob,
+                })
+                
+                # Cập nhật mức độ rủi ro (hàm write sẽ được gọi ở đây)
+                customer.write({'x_churn_risk_level': new_pred.probability_level})
+                
+                if new_pred.is_high_risk:
+                    high_risk_predictions_list.append(new_pred)
 
         _logger.info(f"Hoàn thành dự đoán cho {len(valid_partners)} khách hàng.")
 
-        # 7. Gửi Báo cáo & Tạo Activity (Sử dụng lại logic cũ)
+        # 7. GỬI BÁO CÁO TỔNG HỢP DUY NHẤT (AN TOÀN)
         self._send_cron_report_email(high_risk_predictions_list, len(valid_partners), start_time)
-        self._create_high_risk_activities(high_risk_predictions_list)
         
-        _logger.info("===== KẾT THÚC CRON =====")
+        _logger.info("===== KẾT THÚC CRON JOB FULL DATABASE =====")
 
-    # === CÁC HÀM HỖ TRỢ ĐỂ CODE GỌN HƠN ===
-    
-    def _create_high_risk_activities(self, high_risk_preds):
-        """Tạo activity cho sale nếu khách hàng nguy cơ cao"""
-        if not high_risk_preds: return
+    # @api.model
+    # def _cron_predict_churn(self):
+    #     """
+    #     CRON JOB DỰ ĐOÁN CHURN HÀNG NGÀY (LOGIC ĐÃ TỐI ƯU)
         
-        activity_type_id = self.env.ref('mail.mail_activity_data_todo').id
-        count = 0
-        for pred in high_risk_preds:
-            customer = pred.customer_id
-            if not customer.user_id: continue
-            
-            # Check trùng activity
-            existing = self.env['mail.activity'].search_count([
-                ('res_id', '=', customer.id),
-                ('res_model', '=', 'res.partner'),
-                ('summary', '=', 'Nguy cơ Churn cao!')
-            ])
-            
-            if existing == 0:
-                self.env['mail.activity'].create({
-                    'res_id': customer.id,
-                    'res_model_id': self.env.ref('base.model_res_partner').id,
-                    'activity_type_id': activity_type_id,
-                    'summary': 'Nguy cơ Churn cao!',
-                    'note': f"Hệ thống phát hiện rủi ro cao: {pred.probability:.2f}%",
-                    'user_id': customer.user_id.id,
-                })
-                count += 1
-        _logger.info(f"Đã tạo {count} activities mới.")
+    #     Quy trình đã được sửa đổi để ngăn chặn "bão" bus event:
+    #     1. Chạy dự đoán cho tất cả khách hàng mục tiêu.
+    #     2. Thu thập danh sách những khách hàng có nguy cơ cao vào một biến Python.
+    #        KHÔNG thực hiện bất kỳ hành động gửi thông báo nào trong vòng lặp.
+    #     3. Sau khi hoàn tất, gửi MỘT email báo cáo tổng hợp duy nhất đến admin,
+    #        liệt kê tất cả các khách hàng có nguy cơ cao đã tìm thấy.
+    #     """
+    #     _logger.info("===== BẮT ĐẦU CRON JOB DỰ ĐOÁN CHURN HÀNG NGÀY (LOGIC ĐÃ TỐI ƯU) =====")
+    #     start_time = fields.Datetime.now()
+        
+    #     customers_processed_count = 0
+    #     high_risk_predictions_list = []
 
+    #     # === BƯỚC 1: TÌM KHÁCH HÀNG MỤC TIÊU VÀ CHẠY DỰ ĐOÁN (Giữ nguyên) ===
+    #     time_threshold = start_time - timedelta(hours=24)
+    #     recent_orders = self.env['sale.order'].search([
+    #         ('state', 'in', ['sale', 'done']),
+    #         ('date_order', '>=', time_threshold),
+    #     ])
+    #     customers_to_predict = recent_orders.mapped('partner_id')
+    #     customers_processed_count = len(customers_to_predict)
+
+    #     if not customers_to_predict:
+    #         _logger.info("Không tìm thấy khách hàng nào có đơn hàng mới trong 24h qua.")
+    #     else:
+    #         _logger.info(f"Tìm thấy {customers_processed_count} khách hàng cần dự đoán: {[p.name for p in customers_to_predict]}")
+    #         # Chạy logic dự đoán, hàm này sẽ tự động tạo các bản ghi 'churn.prediction'
+    #         try:
+    #             customers_to_predict.action_predict_churn()
+    #         except Exception as e:
+    #             _logger.error(f"Lỗi xảy ra trong quá trình dự đoán của cron job: {e}", exc_info=True)
+            
+    #         # === BƯỚC 2: THU THẬP KẾT QUẢ - CHỈ LƯU VÀO BIẾN, KHÔNG HÀNH ĐỘNG ===
+    #         # Tìm các kết quả dự đoán "nguy cơ cao" vừa được tạo ra
+    #         prediction_threshold = start_time - timedelta(minutes=5) # Cho phép 5 phút để xử lý
+    #         high_risk_predictions = self.env['churn.prediction'].search([
+    #             ('create_date', '>=', prediction_threshold),
+    #             ('is_high_risk', '=', 1),
+    #             ('customer_id', 'in', customers_to_predict.ids)
+    #         ])
+    #         # Lưu kết quả vào danh sách để xử lý sau
+    #         high_risk_predictions_list = high_risk_predictions
+
+    #     # --- LOẠI BỎ HOÀN TOÀN LOGIC CŨ GÂY LỖI ---
+    #     # Đoạn code tạo mail.activity trong vòng lặp for đã bị xóa bỏ hoàn toàn.
+    #     # Đây là nguyên nhân chính gây ra "bão" bus event.
+    #     # Thay vào đó, chúng ta sẽ gửi một email báo cáo tổng hợp duy nhất ở bước tiếp theo.
+
+    #     # === BƯỚC 3: TỔNG HỢP VÀ GỬI MỘT EMAIL BÁO CÁO DUY NHẤT ===
+    #     try:
+    #         # Lấy email người nhận từ cấu hình hệ thống
+    #         # recipient_email = self.env['ir.config_parameter'].sudo().get_param('churn_predictor.recipient_email')
+    #         recipient_email = os.environ.get('CHURN_PREDICTOR_RECIPIENT_EMAIL')
+            
+    #         if not recipient_email:
+    #             _logger.warning("Chưa cấu hình email người nhận (churn_predictor.recipient_email). Sẽ không gửi email báo cáo.")
+    #             # Kết thúc hàm ở đây nếu không có email để gửi
+    #             _logger.info("===== KẾT THÚC CRON JOB DỰ ĐOÁN CHURN HÀNG NGÀY =====")
+    #             return
+
+    #         template = self.env.ref('ChurnPredictor.email_template_churn_cron_summary')
+    #         base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+
+    #         # --- Xây dựng nội dung HTML cho email ---
+    #         high_risk_table_html = ''
+    #         if high_risk_predictions_list:
+    #             table_rows = []
+    #             for pred in high_risk_predictions_list:
+    #                 customer = pred.customer_id
+    #                 customer_form_url = f"{base_url}/web#id={customer.id}&model=res.partner&view_type=form"
+    #                 row = f"""
+    #                     <tr>
+    #                         <td style="padding: 8px; border: 1px solid #ddd;"><a href="{customer_form_url}">{customer.name}</a></td>
+    #                         <td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: #d9534f;">{pred.probability:.2f}%</td>
+    #                         <td style="padding: 8px; border: 1px solid #ddd;">{customer.user_id.name if customer.user_id else 'N/A'}</td>
+    #                     </tr>
+    #                 """
+    #                 table_rows.append(row)
+
+    #             high_risk_table_html = f"""
+    #                 <h3 style="margin-top: 20px;">Chi tiết các khách hàng có nguy cơ cao:</h3>
+    #                 <table border="1" style="border-collapse: collapse; width: 100%;">
+    #                     <thead style="background-color: #f2f2f2;">
+    #                         <tr>
+    #                             <th style="padding: 8px;">Tên Khách Hàng</th>
+    #                             <th style="padding: 8px;">Xác suất Churn (%)</th>
+    #                             <th style="padding: 8px;">Nhân viên phụ trách</th>
+    #                         </tr>
+    #                     </thead>
+    #                     <tbody>{''.join(table_rows)}</tbody>
+    #                 </table>
+    #             """
+
+    #         overview_dashboard_url = f"{base_url}/web#action=churn_predictor.action_churn_dashboard_main"
+    #         overview_button_html = f"""
+    #             <div style="text-align: center; margin: 30px 0;">
+    #                 <a href="{overview_dashboard_url}" style="background-color: #017e84; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px;">
+    #                     Mở Dashboard Tổng Quan
+    #                 </a>
+    #             </div>
+    #         """
+            
+    #         render_context = {
+    #             'start_time': start_time,
+    #             'end_time': fields.Datetime.now(),
+    #             'customers_processed': customers_processed_count,
+    #             'high_risk_found': len(high_risk_predictions_list),
+    #             'processed_customer_names': ', '.join(customers_to_predict.mapped('name')),
+    #             'high_risk_table_html': high_risk_table_html,
+    #             'overview_button_html': overview_button_html,
+    #         }
+            
+    #         # Sử dụng kỹ thuật render thủ công an toàn
+    #         res_id = self.env.user.partner_id.id or self.env.ref('base.main_partner').id
+    #         rendered_subject = template.with_context(**render_context)._render_template(template.subject, 'res.partner', [res_id])[res_id]
+    #         rendered_body = template.with_context(**render_context)._render_template(template.body_html, 'res.partner', [res_id])[res_id]
+    #         sender_email = recipient_email
+
+    #         # Sử dụng mail.mail để gửi email an toàn, không tạo chatter, không spam bus
+    #         mail_values = {
+    #             'subject': rendered_subject,
+    #             'body_html': rendered_body,
+    #             'email_to': recipient_email,
+    #             'email_from': f'"{self.env.user.name}" <{sender_email}>',
+    #             'author_id': self.env.user.partner_id.id,
+    #             'auto_delete': True,
+    #         }
+            
+    #         mail = self.env['mail.mail'].sudo().create(mail_values)
+    #         mail.send()
+    #         _logger.info(f"Đã gửi email báo cáo tổng hợp đến {recipient_email} với {len(high_risk_predictions_list)} khách hàng nguy cơ cao.")
+
+    #     except Exception as e:
+    #         _logger.error(f"Lỗi khi gửi email báo cáo cron job: {e}", exc_info=True)
+    #     finally:
+    #         _logger.info("===== KẾT THÚC CRON JOB DỰ ĐOÁN CHURN HÀNG NGÀY =====")
+
+
+    # def _send_high_risk_alert_email(self):
+    #     """
+    #     Phương thức được cập nhật để xây dựng HTML trong code và gửi đi,
+    #     dựa trên kiến trúc mới.
+    #     """
+    #     self.ensure_one()
+
+    #     recipient_email = os.environ.get('CHURN_PREDICTOR_RECIPIENT_EMAIL')
+    #     if not recipient_email:
+    #         _logger.info("Bỏ qua gửi email cảnh báo vì chưa cấu hình biến môi trường CHURN_PREDICTOR_RECIPIENT_EMAIL.")
+    #         return
+
+    #     _logger.info("Chuẩn bị gửi email cảnh báo nguy cơ cao cho Salesperson của KH '%s'.", self.name)
+        
+    #     template = self.env.ref('ChurnPredictor.email_template_high_risk_alert')
+    #     base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+
+    #     # --- Xây dựng các chuỗi HTML trong Python ---
+        
+    #     # 1. Chi tiết thông tin khách hàng
+    #     customer_details_html = f"""
+    #         <div style="border: 1px solid #ccc; padding: 15px; margin: 15px 0; background-color: #f9f9f9;">
+    #             <strong>Tên khách hàng:</strong> {self.name} <br/>
+    #             <strong>Email:</strong> {self.email or 'N/A'} <br/>
+    #             <strong>Số điện thoại:</strong> {self.phone or 'N/A'} <br/>
+    #             <strong>Nhân viên phụ trách:</strong> {self.user_id.name or 'Chưa có'}
+    #         </div>
+    #     """
+        
+    #     # 2. Nút bấm hành động (link đến form khách hàng)
+    #     customer_form_url = f"{base_url}/web#id={self.id}&model=res.partner&view_type=form"
+    #     action_button_html = f"""
+    #         <div style="text-align: center; margin: 20px 0;">
+    #             <a href="{customer_form_url}"
+    #                style="display: inline-block; padding: 10px 20px; background-color: #d9534f; color: #fff; text-decoration: none; border-radius: 5px;">
+    #                 Xem chi tiết Khách hàng
+    #             </a>
+    #         </div>
+    #     """
+        
+    #     # --- Chuẩn bị context để render template ---
+    #     render_context = {
+    #         'recipient_email': self.user_id.email,
+    #         'salesperson_name': self.user_id.name,
+    #         'customer_details_html': customer_details_html,
+    #         'action_button_html': action_button_html,
+    #     }
+
+    #     # Render và gửi email (sử dụng phương thức render thủ công đáng tin cậy)
+    #     rendered_subject = template.with_context(**render_context)._render_template(template.subject, 'res.partner', [self.id])[self.id]
+    #     rendered_body = template.with_context(**render_context)._render_template(template.body_html, 'res.partner', [self.id])[self.id]
+    #     sender_email = os.environ.get('SMTP_USER')
+    #     if not sender_email:
+    #         sender_email = '22520622@gm.uit.edu.vn' 
+            
+    #     _logger.info(f"EMAIL_TO: {recipient_email}")
+    #     _logger.info(f"EMAIL_FROM (Sender): {sender_email}")
+
+    #     mail_values = {
+    #         'subject': rendered_subject,
+    #         'body_html': rendered_body,
+    #         'email_to': self.user_id.email,
+    #         'email_from': template.email_from,
+    #         'email_from': f'"{self.env.user.name} Churn System" <{sender_email}>', 
+    #         'author_id': self.env.user.partner_id.id,
+    #         'auto_delete': True,
+    #     }
+        
+    #     mail = self.env['mail.mail'].sudo().create(mail_values)
+    #     mail.send()
+        
+    #     _logger.info("Đã đưa email cảnh báo cho KH '%s' vào hàng đợi để gửi đến %s.", self.name, self.user_id.email)

@@ -36,7 +36,6 @@ Long description of module's purpose
         'views/churn_progress_views.xml',
         'views/customer_dashboard_views.xml',
         'views/res_partner_views.xml',
-        'views/res_partner_views.xml', # File này đã có
         'views/product_views.xml',
         'views/sale_order_views.xml',
         'views/rating_views.xml',
@@ -63,8 +62,7 @@ Long description of module's purpose
             'ChurnPredictor/static/src/components/admin_dashboard/admin_dashboard.js',
             'ChurnPredictor/static/src/components/admin_dashboard/admin_dashboard.xml',
         ],
-    },
-    
+    },    
     # để hiện icon ngoài Apps
     'application': True,
     'installable': True,

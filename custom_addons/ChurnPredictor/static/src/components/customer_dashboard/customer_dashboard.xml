@@ -158,9 +158,18 @@
                                         <button class="btn btn-outline-secondary btn-sm" t-on-click="onViewShapClick">
                                             <i class="fa fa-bar-chart me-2"/>Technical Plot
                                         </button>
+                                        <t t-if="state.latestPrediction.shap_ai_explanation">
+                                            <button class="btn btn-success btn-sm" t-on-click="onSendEmailClick" t-att-disabled="state.isSendingEmail">
+                                                <i t-if="state.isSendingEmail" class="fa fa-spinner fa-spin me-2"/>
+                                                <i t-else="" class="fa fa-paper-plane me-2"/>
+                                                <t t-esc="state.isSendingEmail ? 'Sending...' : 'Send to Customer'"/>
+                                            </button>
+                                        </t>
                                         <button class="btn btn-outline-dark btn-sm" t-on-click="onCheckDebugLogs">
                                             <i class="fa fa-terminal me-2"/>Debug Logs
                                         </button>
+
+
                                     </div>
                                 </div>
                             </t>
@@ -252,9 +261,7 @@
                         </div>
                     </div>
                 </div>
-
-            </div> <!-- End Row 2 -->
-
+            </div>
         </div>
     </t>
 </templates>
