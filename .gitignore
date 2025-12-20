@@ -1,4 +1,3 @@
-# Bỏ qua toàn bộ thư mục data_to_import
 data_to_import/
 upload_data/
 temp_kaggle_process/
@@ -7,19 +6,15 @@ ml_assets/
 custom_addons/ChurnPredictor/models/shap_plot_0.html
 custom_addons/ChurnPredictor/models/shap_plot_1.html
 custom_addons/ChurnPredictor/models/shap_plot_2.html
-
 custom_addons/ChurnPredictor/models/__pycache__/
-
 custom_addons/ChurnPredictor/config/kaggle.json
-
 custom_addons/ChurnPredictor/data/dataset_history/
 custom_addons/ChurnPredictor/data/sample/
+custom_addons/ChurnPredictor/data/
 
-# Ngoài ra, bạn cũng nên bỏ qua các thư mục cache của Python và Odoo
+.env
+
 __pycache__/
 *.pyc
 **/__pycache__/
 **/*.pyc
-
-# Các file tài sản ML lớn thường không nên commit trực tiếp (nếu chúng rất lớn)
-# models/ml_assets/
