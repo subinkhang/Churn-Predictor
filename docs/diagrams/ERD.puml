@@ -1,0 +1,49 @@
+@startuml
+!theme plain
+skinparam rectangle {
+    BorderColor #34495E
+    BackgroundColor<<extended>> #A9DCDF
+    BackgroundColor<<new>> #F4D03F
+}
+skinparam database {
+    BorderColor #34495E
+}
+
+' Bảng có sẵn được mở rộng
+entity "res_partner (Khách hàng)" as Partner <<extended>> {
+  + id [PK]
+  -- Các trường gốc của Odoo --
+  .. Các trường mở rộng ..
+  + x_churn_probability: Float
+  + x_churn_label: Selection
+  + x_last_prediction_date: Datetime
+  + x_churn_explanation: Text
+}
+
+' Bảng mới để quản lý phiên bản mô hình
+entity "churn.model.version (Phiên bản Mô hình)" as ModelVersion <<new>> {
+  + id [PK]
+  --
+  + name: Char  (ví dụ: '20251225_143000')
+  + file_path: Char
+  + is_active: Boolean
+  + accuracy_score: Float
+  + f1_score: Float
+}
+
+' Bảng mới để lưu lịch sử dự báo
+entity "churn.prediction.history (Lịch sử Dự báo)" as PredictionHistory <<new>> {
+  + id [PK]
+  --
+  + probability: Float
+  + prediction_date: Datetime
+  .. Khóa ngoại ..
+  # partner_id [FK]
+  # model_version_id [FK]
+}
+
+' Định nghĩa các mối quan hệ
+Partner ||--o{ PredictionHistory : "có"
+ModelVersion ||--o{ PredictionHistory : "được sử dụng trong"
+
+@enduml

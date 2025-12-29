@@ -1,0 +1,53 @@
+@startuml
+title Luồng Hoạt động - Dự báo, Phân tích và Can thiệp
+
+|Tác vụ Tự động (Odoo Scheduler)|
+start
+:Bắt đầu vào 12:00 AM;
+:Truy vấn danh sách khách hàng hoạt động;
+:Tải phiên bản mô hình .joblib mới nhất;
+repeat
+  :Lấy một lô (batch) khách hàng;
+  :Tiền xử lý dữ liệu;
+  :Thực hiện dự báo (Inference);
+  :Cập nhật kết quả (xác suất, nhãn) vào DB;
+repeat while (Còn khách hàng chưa xử lý?)
+:Ghi log hoàn tất;
+:Gửi Email Báo cáo Tóm tắt cho Quản lý;
+
+|Nhân viên CSKH/CRM (Staff)|
+:Bắt đầu ngày làm việc;
+:Truy cập Dashboard, xem danh sách khách hàng rủi ro cao;
+:Chọn một khách hàng cụ thể để phân tích;
+:Truy cập tab "Phân tích Rời bỏ";
+:Xem xác suất và các thông số cơ bản;
+if (Cần hiểu sâu hơn?) then (yes)
+  :Nhấn nút "Explain with AI";
+  |Hệ thống Odoo|
+  :Tính toán SHAP values cho khách hàng;
+  :Thiết kế Prompt chứa dữ liệu SHAP và ngữ cảnh;
+  :Gửi yêu cầu đến OpenAI API;
+  |OpenAI API|
+  :Xử lý yêu cầu và tạo văn bản giải thích;
+  |Hệ thống Odoo|
+  :Nhận và hiển thị văn bản giải thích cho Staff;
+  :Lưu lại kết quả giải thích vào DB;
+endif
+|Nhân viên CSKH/CRM (Staff)|
+:Đọc và hiểu lý do rời bỏ;
+:Xác định hành động can thiệp;
+if (Hành động là gửi Email?) then (yes)
+  :Nhấn nút "Send Email to Customer";
+  |Hệ thống Odoo|
+  :Gửi email qua SMTP Server;
+  :Ghi lại hoạt động vào Lịch sử (Chatter);
+else (no)
+  :Thực hiện hành động khác (gọi điện, tạo tác vụ);
+  |Hệ thống Odoo|
+  :Ghi lại hoạt động vào Lịch sử (Chatter);
+endif
+|Nhân viên CSKH/CRM (Staff)|
+:Kết thúc xử lý trường hợp;
+stop
+
+@enduml

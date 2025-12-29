@@ -19,24 +19,18 @@
                 -->
                 <field name="churn_rate" type="measure" operator="+"/>
                 <field name="probability" type="measure" operator="avg"/>
-                <field name="id" string="Total Predictions" type="measure"/>
+                <!-- <field name="id" string="Total Predictions" type="measure"/> -->
+                <field name="id" string="Total Predictions" type="measure" operator="count"/>
             </graph>
         </field>
     </record>
 
-    <!-- ====================================================== -->
-    <!-- 2. TẠO ACTION ĐỂ GỌI VIEW KPI                      -->
-    <!-- ====================================================== -->
-    <record id="action_churn_kpi" model="ir.actions.act_window">
+    <!-- <record id="action_churn_kpi" model="ir.actions.act_window">
         <field name="name">Churn KPIs</field>
         <field name="res_model">churn.prediction</field>
-        <!-- 
-            view_mode="graph" để mở trực tiếp chế độ xem biểu đồ.
-            'disable_linking="1"' ở trên sẽ làm cho các thẻ số không thể click vào được.
-        -->
         <field name="view_mode">graph</field>
         <field name="view_id" ref="view_churn_prediction_kpi_graph"/>
-    </record>
+    </record> -->
 
     <record id="action_churn_main_dashboard" model="ir.actions.act_window">
         <field name="name">Churn Dashboard</field>
@@ -46,23 +40,23 @@
             - view_mode: Liệt kê tất cả các chế độ xem bạn muốn.
             - Chế độ xem đầu tiên trong danh sách (graph) sẽ là chế độ mặc định.
         -->
-        <field name="view_mode">graph,pivot,kanban,tree</field>
+        <!-- <field name="view_mode">graph,pivot,kanban,tree</field>
         <field name="context">{'form_view_ref': 'churn_prediction_spa_action_tag'}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No data found. Create some predictions to see your dashboard!
             </p>
-        </field>
+        </field> -->
     </record>
 
     <!-- ====================================================== -->
     <!-- 3. TẠO MENU ITEM ĐỂ MỞ TRANG KPI                   -->
     <!-- ====================================================== -->
-    <menuitem
+    <!-- <menuitem
         id="menu_churn_kpi"
         name="KPIs"
         parent="menu_churn_root"
         action="action_churn_kpi"
-        sequence="2"/> <!-- Đặt sau "Predictions" và "Dashboard" -->
+        sequence="2"/> -->
 
 </odoo>

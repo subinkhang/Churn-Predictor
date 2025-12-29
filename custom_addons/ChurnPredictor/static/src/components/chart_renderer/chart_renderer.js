@@ -220,7 +220,7 @@ export class ChartRenderer extends Component {
                         },
                         font: {
                             weight: 'bold',
-                            size: 11,
+                            size: 8,
                         },
                         color: '#666'
                     }

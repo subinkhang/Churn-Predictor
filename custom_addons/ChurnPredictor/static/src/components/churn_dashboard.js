@@ -4,6 +4,7 @@ import { registry } from "@web/core/registry";
 import { KpiCard } from "./kpi_card/kpi_card";
 import { ChartRenderer } from "./chart_renderer/chart_renderer";
 import { useService } from "@web/core/utils/hooks";
+import { ActionContainer } from "@web/webclient/actions/action_container";
 
 const { Component, onWillStart, useState } = owl;
 
@@ -13,7 +14,8 @@ export class ChurnDashboard extends Component {
             period: 90,
             highRiskCustomers: { value: 0, percentage: 0 },
             predictedChurn: { value: 0, percentage: 0 },
-            totalPredictions: { value: 0, percentage: 0 },
+            // totalPredictions: { value: 0, percentage: 0 },
+            totalCustomers: { value: 0, percentage: 0 },
             riskDistribution: { labels: [], data: [] },
             topHighRiskStates: { labels: [], data: [] },
             probabilityTrend: { labels: [], data: [] },
@@ -31,7 +33,8 @@ export class ChurnDashboard extends Component {
             this.getDates();
             await Promise.all([
                 this.getChurnData(),
-                this.getChartData()
+                this.getChartData(),
+                this.getTotalCustomersData()
             ]);
         });
     }
@@ -40,7 +43,8 @@ export class ChurnDashboard extends Component {
         this.getDates();
         await Promise.all([
             this.getChurnData(),
-            this.getChartData()
+            this.getChartData(),
+            this.getTotalCustomersData()
         ]);
     }
 
@@ -97,6 +101,16 @@ export class ChurnDashboard extends Component {
             percentage: this.computePercentage(current_avg, prev_avg),
         };
         this.state.totalPredictions = { value: tot_curr, percentage: this.computePercentage(tot_curr, tot_prev) };
+    }
+
+    async getTotalCustomersData() {
+        // Chúng ta định nghĩa "khách hàng" là những liên hệ có customer_rank > 0
+        // và đang active. Đây là cách chuẩn của Odoo.
+        const domain = [['customer_rank', '>', 0], ['active', '=', true]]; // <-- ĐÃ SỬA
+        const total_customers_count = await this.orm.searchCount('res.partner', domain);
+        
+        // KPI này không có sự thay đổi theo % nên ta để percentage là 0
+        this.state.totalCustomers = { value: total_customers_count, percentage: 0 };
     }
 
     async getChartData() {
@@ -187,7 +201,7 @@ export class ChurnDashboard extends Component {
 
         this.actionService.doAction({
             type: "ir.actions.act_window",
-            name: "High-Risk Customers",
+            name: "High-Risk",
             res_model: "churn.prediction",
             domain,
             views: [[false, "list"], [false, "form"]],
@@ -227,6 +241,17 @@ export class ChurnDashboard extends Component {
             res_model: "churn.prediction",
             domain: this._createDomain(),
             views: [[false, "list"], [false, "form"]],
+        });
+    }
+
+    async viewTotalCustomers() {
+        this.actionService.doAction({
+            type: "ir.actions.act_window",
+            name: "Total Customers",
+            res_model: "res.partner",
+            domain: [['customer_rank', '>', 0], ['active', '=', True]], // Lọc đúng những khách hàng đã đếm
+            views: [[false, "list"], [false, "form"]],
+            context: { 'search_default_customer': 1 } // Thêm bộ lọc mặc định "Customers"
         });
     }
     
@@ -283,7 +308,7 @@ export class ChurnDashboard extends Component {
             labels: topStates.map(([name]) => name),
             datasets: [
                 {
-                    label: 'Predicted Churn',
+                    label: 'Churn',
                     data: topStates.map(([, counts]) => counts.churn),
                     backgroundColor: 'rgba(255, 99, 132, 0.7)',
                 },
@@ -324,7 +349,7 @@ export class ChurnDashboard extends Component {
             labels: sortedLabels, // Nhãn là các Tuần
             datasets: [
                 {
-                    label: 'Predicted Churn',
+                    label: 'Churn',
                     data: sortedLabels.map(week => trendData[week].churn),
                     borderColor: 'rgba(255, 99, 132, 1)',
                     backgroundColor: 'rgba(255, 99, 132, 0.7)',

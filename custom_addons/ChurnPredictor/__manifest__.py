@@ -40,11 +40,12 @@ Long description of module's purpose
         'views/sale_order_views.xml',
         'views/rating_views.xml',
         'views/churn_admin_action.xml',
+        # 'views/churn_progress_analysis_views.xml',
     ],
     # only loaded in demonstration mode
-    'demo': [
-        'demo/demo.xml',
-    ],
+    # 'demo': [
+    #     'demo/demo.xml',
+    # ],
     'assets': {
         'web.assets_backend': [
             'ChurnPredictor/static/src/components/kpi_card/kpi_card.js',

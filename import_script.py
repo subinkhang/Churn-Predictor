@@ -31,9 +31,73 @@ def import_data(env):
     # import_order_lines(env)
     # import_reviews_and_payments(env)
     # import_customer_features(env)
-    import_customer_additional_data(env)
+    import_customer_additional_data(env) 
+    # reset_customer_features(env)
+    # relink_customer_ids(env)
     
     _logger.info("--- TOÀN BỘ QUÁ TRÌNH IMPORT ĐÃ HOÀN TẤT ---")
+
+def relink_customer_ids(env):
+    """
+    Hàm này dùng để cấp lại 'x_unique_id' cho các khách hàng đã bị mất
+    sau khi cài đặt lại module. Nó đối chiếu dựa trên tên khách hàng.
+    """
+    # File này phải là file đã dùng để tạo khách hàng ban đầu
+    filepath = os.path.join(DATA_DIR, 'customers_to_import.csv')
+    
+    _logger.info("========================================================")
+    _logger.info("BẮT ĐẦU SCRIPT TÁI LIÊN KẾT 'x_unique_id'")
+    _logger.info(f"File nguồn: {filepath}")
+    _logger.info("========================================================")
+
+    if not os.path.exists(filepath):
+        _logger.error(f"LỖI: Không tìm thấy file '{filepath}'.")
+        return
+
+    try:
+        csv_iterator = pd.read_csv(filepath, chunksize=BATCH_SIZE, dtype=str)
+        total_relinked = 0
+        total_not_found = 0
+        
+        for chunk_idx, df in enumerate(csv_iterator):
+            _logger.info(f"--- Đang xử lý Chunk {chunk_idx + 1} ---")
+            df.fillna('', inplace=True)
+            
+            chunk_relinked = 0
+            for _, row in df.iterrows():
+                unique_id = row.get('x_unique_id')
+                if not unique_id:
+                    continue
+                
+                # Tái tạo lại tên khách hàng đã được tạo trước đây
+                expected_name = f"Customer {str(unique_id)[:8]}"
+                
+                # Tìm khách hàng trong Odoo có cái tên đó
+                partner = env['res.partner'].search(
+                    [('name', '=', expected_name)], limit=1
+                )
+                
+                if partner:
+                    # Nếu tìm thấy, cấp lại "chứng minh thư"
+                    partner.write({'x_unique_id': unique_id})
+                    chunk_relinked += 1
+                else:
+                    total_not_found += 1
+            
+            env.cr.commit()
+            total_relinked += chunk_relinked
+            _logger.info(f"   -> Đã tái liên kết {chunk_relinked} khách hàng.")
+            del df
+            gc.collect()
+
+        _logger.info("========================================================")
+        _logger.info(f"HOÀN TẤT TÁI LIÊN KẾT!")
+        _logger.info(f"Tổng cộng đã cập nhật: {total_relinked}")
+        _logger.info(f"Số khách hàng không tìm thấy (có thể đã bị xóa/đổi tên): {total_not_found}")
+        _logger.info("========================================================")
+
+    except Exception as e:
+        _logger.error(f"Lỗi nghiêm trọng trong quá trình tái liên kết: {e}", exc_info=True)
 
 def import_products(env):
     filepath = os.path.join(DATA_DIR, 'products_to_import.csv')
@@ -564,7 +628,239 @@ def import_reviews_and_payments(env):
         _logger.error(f"Không tìm thấy file: {filepath_pay}")
     except Exception as e:
         _logger.error(f"Lỗi trong phần Payments: {e}", exc_info=True)
+
+def import_customer_additional_data(env):
+    """
+    Hàm này đọc file chứa dữ liệu bổ sung (Segment, Gap...) và cập nhật vào Customer.
+    File csv ví dụ: customer_segmentation.csv
+    Cột key: customer_unique_id -> map với x_unique_id trong Odoo
+    """
+    filename = 'order_context_data1.csv' 
+    filepath = os.path.join(DATA_DIR, filename)
+    
+    _logger.info(f"========================================================")
+    _logger.info(f"BẮT ĐẦU CẬP NHẬT DỮ LIỆU BỔ SUNG (SEGMENT/GAP)")
+    _logger.info(f"File: {filename}")
+    _logger.info(f"========================================================")
+    
+    if not os.path.exists(filepath):
+        _logger.error(f"LỖI: Không tìm thấy file '{filepath}'.")
+        return
+
+    try:
+        chunk_size = 500 
+        csv_iterator = pd.read_csv(filepath, chunksize=chunk_size)
         
+        total_updated = 0
+        
+        for chunk_idx, df in enumerate(csv_iterator):
+            _logger.info(f"--- Đang xử lý Chunk {chunk_idx + 1} ---")
+            
+            # 1. Xử lý dữ liệu
+            df.fillna(0, inplace=True)
+            
+            # (SỬA LỖI) Làm sạch ID bằng cách loại bỏ khoảng trắng thừa
+            df['customer_unique_id'] = df['customer_unique_id'].astype(str).str.strip()
+            current_ids = df['customer_unique_id'].tolist()
+            
+            # === THÊM LOG DEBUG ===
+            if chunk_idx == 0: # Chỉ in log cho chunk đầu tiên để tránh làm ngập log
+                _logger.info(f"[DEBUG] 5 ID đầu tiên từ CSV chunk 1: {current_ids[:5]}")
+            # ======================
+
+            # 2. Tìm khách hàng trong Odoo
+            partners = env['res.partner'].search_read(
+                [('x_unique_id', 'in', current_ids)], 
+                ['id', 'x_unique_id']
+            )
+            
+            # === THÊM LOG DEBUG ===
+            _logger.info(f"[DEBUG] Đã tìm thấy {len(partners)} khách hàng trùng khớp trong Odoo cho chunk này.")
+            # ======================
+
+            partner_map = {p['x_unique_id']: p['id'] for p in partners}
+            
+            # Nếu không tìm thấy ai, bỏ qua toàn bộ chunk cho nhanh
+            if not partners:
+                _logger.warning(f"   -> Không tìm thấy khách hàng nào trùng khớp. Bỏ qua chunk.")
+                continue
+
+            # 3. Duyệt và Update
+            records = df.to_dict('records')
+            chunk_updates = 0
+            
+            for row in records:
+                unique_id = str(row.get('customer_unique_id'))
+                partner_id = partner_map.get(unique_id)
+                
+                if not partner_id:
+                    continue
+                    
+                vals = {
+                    'x_feat_segment': int(float(row.get('segment', 0))),
+                    'x_feat_personal_avg_gap': float(row.get('personal_avg_gap', 0)),
+                    'x_feat_category_avg_gap': float(row.get('category_avg_gap', 0)),
+                    'x_feat_product_category_name_english_last': str(row.get('product_category_name_english', '')),
+                }
+                
+                try:
+                    env['res.partner'].browse(partner_id).write(vals)
+                    chunk_updates += 1
+                except Exception as e:
+                    pass
+            
+            total_updated += chunk_updates
+            env.cr.commit()
+            _logger.info(f"   -> Đã cập nhật bổ sung {chunk_updates} khách hàng.")
+            
+            del df, records, partner_map, partners
+            gc.collect() 
+
+        _logger.info(f"========================================================")
+        _logger.info(f"HOÀN TẤT UPDATE BỔ SUNG! TỔNG CỘNG: {total_updated}")
+        _logger.info(f"========================================================")
+
+    except Exception as e:
+        _logger.error(f"Lỗi trong quá trình import bổ sung: {e}", exc_info=True)
+
+        
+        
+def reset_customer_features(env):
+    """
+    Reset toàn bộ các trường feature bổ sung về giá trị mặc định (0 hoặc rỗng)
+    cho TẤT CẢ khách hàng trong hệ thống.
+    
+    Các trường sẽ bị reset:
+        - x_feat_segment
+        - x_feat_personal_avg_gap
+        - x_feat_category_avg_gap
+        - x_feat_product_category_name_english_last (nếu muốn xóa luôn)
+    
+    Dùng hàm này trước khi import dữ liệu mới để đảm bảo không bị lẫn dữ liệu cũ.
+    """
+    _logger.info("========================================================")
+    _logger.info("BẮT ĐẦU RESET TOÀN BỘ FEATURES KHÁCH HÀNG VỀ GIÁ TRỊ MẶC ĐỊNH")
+    _logger.info("========================================================")
+    
+    try:
+        # Đếm số khách hàng trước khi reset (để log)
+        total_customers = env['res.partner'].search_count([])
+        _logger.info(f"Tìm thấy {total_customers:,} khách hàng trong hệ thống.")
+        
+        if total_customers == 0:
+            _logger.warning("Không có khách hàng nào để reset.")
+            return
+        
+        # Giá trị reset
+        reset_vals = {
+            'x_feat_segment': 0,                    # int
+            'x_feat_personal_avg_gap': 0.0,          # float
+            'x_feat_category_avg_gap': 0.0,          # float
+            'x_feat_product_category_name_english_last': '',  # string (tùy chọn xóa)
+        }
+        
+        # Thực hiện write hàng loạt - rất nhanh và an toàn
+        env['res.partner'].search([]).write(reset_vals)
+        
+        # Commit ngay để chắc chắn dữ liệu được lưu
+        env.cr.commit()
+        
+        _logger.info("RESET THÀNH CÔNG!")
+        _logger.info(f"Đã đặt lại {total_customers:,} khách hàng về giá trị mặc định.")
+        _logger.info("========================================================")
+    
+    except Exception as e:
+        env.cr.rollback()  # Quan trọng: rollback nếu có lỗi
+        _logger.error(f"LỖI khi reset features khách hàng: {e}", exc_info=True)
+        raise  # Ném lỗi lên để bạn biết có vấn đề
+
+def import_customer_additional_data_new(env):
+    """
+    Cập nhật lại TOÀN BỘ các field segment & gap cho tất cả khách hàng
+    dựa trên file CSV mới nhất (order_context_data.csv)
+    """
+    filename = 'order_context_data.csv' 
+    filepath = os.path.join(DATA_DIR, filename)
+    
+    _logger.info(f"========================================================")
+    _logger.info(f"BẮT ĐẦU CẬP NHẬT LẠI TOÀN BỘ SEGMENT & GAP CHO KHÁCH HÀNG")
+    _logger.info(f"File: {filename}")
+    _logger.info(f"========================================================")
+    
+    if not os.path.exists(filepath):
+        _logger.error(f"LỖI: Không tìm thấy file '{filepath}'.")
+        return
+
+    try:
+        chunk_size = 500
+        csv_iterator = pd.read_csv(filepath, chunksize=chunk_size)
+        
+        total_processed = 0
+        total_updated = 0
+        seen_customers = set()  # Để đếm số khách hàng duy nhất được update
+        
+        for chunk_idx, df in enumerate(csv_iterator):
+            _logger.info(f"--- Xử lý Chunk {chunk_idx + 1} ---")
+            
+            # Chuẩn hóa dữ liệu
+            df.fillna(0, inplace=True)
+            df['customer_unique_id'] = df['customer_unique_id'].astype(str)
+            
+            # Lấy danh sách unique_id trong chunk này
+            current_ids = df['customer_unique_id'].unique().tolist()
+            
+            # Tìm tất cả partner tương ứng trong Odoo
+            partners = env['res.partner'].search_read(
+                [('x_unique_id', 'in', current_ids)],
+                ['id', 'x_unique_id']
+            )
+            partner_map = {p['x_unique_id']: p['id'] for p in partners}
+            
+            # Nhóm dữ liệu theo customer để lấy giá trị mới nhất (nếu có nhiều row)
+            # Vì gap/segment là customer-level → giống nhau mọi row → lấy row đầu tiên cũng được
+            df_grouped = df.groupby('customer_unique_id').first().reset_index()
+            
+            for _, row in df_grouped.iterrows():
+                unique_id = str(row['customer_unique_id'])
+                partner_id = partner_map.get(unique_id)
+                
+                if not partner_id:
+                    continue  # Bỏ qua nếu không tìm thấy trong Odoo
+                
+                # Chuẩn bị giá trị update
+                vals = {
+                    'x_feat_segment': int(float(row.get('segment', 0))),
+                    'x_feat_personal_avg_gap': float(row.get('personal_avg_gap', 0)),
+                    'x_feat_category_avg_gap': float(row.get('category_avg_gap', 0)),
+                    'x_feat_product_category_name_english_last': str(row.get('product_category_name_english', '')),
+                }
+                
+                try:
+                    env['res.partner'].browse(partner_id).write(vals)
+                    total_updated += 1
+                    seen_customers.add(unique_id)
+                except Exception as e:
+                    _logger.warning(f"Lỗi update khách hàng {unique_id}: {e}")
+            
+            total_processed += len(df)
+            
+            # Commit từng chunk
+            env.cr.commit()
+            _logger.info(f"   -> Chunk {chunk_idx + 1}: cập nhật {len(df_grouped)} khách hàng duy nhất.")
+            
+            # Giải phóng RAM
+            del df, df_grouped, partner_map, partners
+            gc.collect()
+
+        _logger.info(f"========================================================")
+        _logger.info(f"HOÀN TẤT! Đã xử lý {total_processed:,} dòng từ CSV")
+        _logger.info(f"Đã cập nhật {total_updated:,} bản ghi (cho {len(seen_customers):,} khách hàng duy nhất)")
+        _logger.info(f"========================================================")
+
+    except Exception as e:
+        env.cr.rollback()
+        _logger.error(f"Lỗi nghiêm trọng trong quá trình import: {e}", exc_info=True)
+
 def import_customer_features(env):
     """
     Hàm này đọc file 'customer_features_store.csv' THEO TỪNG CHUNK (LÔ)
@@ -675,102 +971,6 @@ def import_customer_features(env):
 
     except Exception as e:
         _logger.error(f"Lỗi trong quá trình import features: {e}", exc_info=True)
-
-def import_customer_additional_data(env):
-    """
-    Hàm này đọc file chứa dữ liệu bổ sung (Segment, Gap...) và cập nhật vào Customer.
-    File csv ví dụ: customer_segmentation.csv
-    Cột key: customer_unique_id -> map với x_unique_id trong Odoo
-    """
-    # Đặt tên file csv của bạn ở đây
-    filename = 'order_context_data.csv' 
-    filepath = os.path.join(DATA_DIR, filename)
-    
-    _logger.info(f"========================================================")
-    _logger.info(f"BẮT ĐẦU CẬP NHẬT DỮ LIỆU BỔ SUNG (SEGMENT/GAP)")
-    _logger.info(f"File: {filename}")
-    _logger.info(f"========================================================")
-    
-    if not os.path.exists(filepath):
-        _logger.error(f"LỖI: Không tìm thấy file '{filepath}'.")
-        return
-
-    try:
-        # Vẫn dùng Chunking để an toàn cho RAM
-        chunk_size = 500 
-        csv_iterator = pd.read_csv(filepath, chunksize=chunk_size)
-        
-        total_updated = 0
-        
-        for chunk_idx, df in enumerate(csv_iterator):
-            _logger.info(f"--- Đang xử lý Chunk {chunk_idx + 1} (Dòng {chunk_idx * chunk_size} -> {(chunk_idx + 1) * chunk_size}) ---")
-            
-            # 1. Xử lý dữ liệu
-            df.fillna(0, inplace=True)
-            
-            # Lưu ý: Trong file mới tên cột là 'customer_unique_id', 
-            # nhưng trong Odoo field là 'x_unique_id'.
-            current_ids = df['customer_unique_id'].astype(str).tolist()
-            
-            # 2. Tìm khách hàng trong Odoo
-            partners = env['res.partner'].search_read(
-                [('x_unique_id', 'in', current_ids)], 
-                ['id', 'x_unique_id']
-            )
-            # Map: { '0000f46a...': 1234 }
-            partner_map = {p['x_unique_id']: p['id'] for p in partners}
-            
-            # 3. Duyệt và Update
-            records = df.to_dict('records')
-            chunk_updates = 0
-            
-            for row in records:
-                unique_id = str(row.get('customer_unique_id'))
-                partner_id = partner_map.get(unique_id)
-                
-                # Nếu không tìm thấy khách hàng trong DB thì bỏ qua
-                if not partner_id:
-                    continue
-                    
-                # Chuẩn bị dữ liệu update
-                # Mapping các trường mới từ CSV vào các field Odoo (giả định bạn đã tạo field x_feat_...)
-                vals = {
-                    # Cập nhật Segment (ép kiểu int)
-                    'x_feat_segment': int(float(row.get('segment', 0))),
-                    
-                    # Cập nhật Gap (ép kiểu float)
-                    'x_feat_personal_avg_gap': float(row.get('personal_avg_gap', 0)),
-                    'x_feat_category_avg_gap': float(row.get('category_avg_gap', 0)),
-                    
-                    # Cập nhật Category (nếu cần thiết, ghi đè giá trị cũ)
-                    'x_feat_product_category_name_english_last': str(row.get('product_category_name_english', '')),
-                }
-                
-                try:
-                    env['res.partner'].browse(partner_id).write(vals)
-                    chunk_updates += 1
-                    total_updated += 1
-                except Exception as e:
-                    # Log lỗi nhỏ nếu cần, hoặc pass để chạy tiếp
-                    pass
-            
-            # 4. Commit transaction sau mỗi chunk
-            env.cr.commit()
-            _logger.info(f"   -> Đã cập nhật bổ sung {chunk_updates} khách hàng.")
-            
-            # Giải phóng bộ nhớ
-            del df
-            del records
-            del partner_map
-            del partners
-            gc.collect() 
-
-        _logger.info(f"========================================================")
-        _logger.info(f"HOÀN TẤT UPDATE BỔ SUNG! TỔNG CỘNG: {total_updated}")
-        _logger.info(f"========================================================")
-
-    except Exception as e:
-        _logger.error(f"Lỗi trong quá trình import bổ sung: {e}", exc_info=True)
 
 # --- ĐIỂM BẮT ĐẦU THỰC THI SCRIPT ---
 # Code này sẽ tự động chạy khi được đưa vào odoo-bin shell

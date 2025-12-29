@@ -24,10 +24,11 @@
                     </div>
                     <!-- === BẮT ĐẦU PHẦN CẬP NHẬT KPI CARDS === -->
                     <div class="row">
-                        <KpiCard onClick.bind="viewHighRiskCustomers" name="'High-Risk Customers'" value="state.highRiskCustomers.value" percentage="state.highRiskCustomers.percentage"/>
-                        <KpiCard onClick.bind="viewPredictedChurn" name="'Predicted Churn'" value="state.predictedChurn.value" percentage="state.predictedChurn.percentage"/>
-                        <KpiCard onClick.bind="viewAvgChurnProbability" name="'Avg. Churn Probability'" value="state.avgChurnProbability.value" percentage="state.avgChurnProbability.percentage"/>
+                        <KpiCard onClick.bind="viewHighRiskCustomers" name="'High-Risk'" value="state.highRiskCustomers.value" percentage="state.highRiskCustomers.percentage"/>
+                        <KpiCard onClick.bind="viewPredictedChurn" name="'Churn'" value="state.predictedChurn.value" percentage="state.predictedChurn.percentage"/>
+                        <KpiCard onClick.bind="viewAvgChurnProbability" name="'Average Churn'" value="state.avgChurnProbability.value" percentage="state.avgChurnProbability.percentage"/>
                         <KpiCard onClick.bind="viewTotalPredictions" name="'Total Predictions'" value="state.totalPredictions.value" percentage="state.totalPredictions.percentage"/>
+                        <!-- <KpiCard onClick.bind="viewTotalCustomers" name="'Total Customers'" value="state.totalCustomers.value" percentage="state.totalCustomers.percentage"/> -->
                     </div>
                     <!-- === KẾT THÚC PHẦN CẬP NHẬT KPI CARDS === -->
                     <div class="row">

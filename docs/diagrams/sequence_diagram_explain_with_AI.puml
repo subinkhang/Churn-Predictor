@@ -1,0 +1,71 @@
+@startuml
+title Biểu đồ Tuần tự - Luồng Giải thích Lý do Rời bỏ bằng AI (XAI)
+
+' --- Style Settings ---
+autonumber
+skinparam sequence {
+    ActorBorderColor #2C3E50
+    ActorBackgroundColor #A9DCDF
+    LifeLineBorderColor #34495E
+    ParticipantBorderColor #34495E
+    ParticipantBackgroundColor #ECF0F1
+    ArrowColor #2C3E50
+    DatabaseBorderColor #34495E
+    DatabaseBackgroundColor #F4D03F
+}
+
+' --- Define Participants ---
+actor "Nhân viên CSKH/CRM" as Staff
+participant "Giao diện Odoo (Browser)" as Browser
+participant "Controller (Odoo Backend)" as OdooController
+participant "Service Layer (churn_predictor.service)" as OdooService
+participant "OpenAI API Client" as OpenAIClient
+database "Cơ sở dữ liệu (PostgreSQL)" as DB
+
+' --- Message Flow ---
+
+Staff -> Browser: Nhấn nút "Explain with AI" trên hồ sơ khách hàng (ID: 123)
+Browser -> OdooController: Gửi HTTP Request: \n `POST /churn_predictor/explain` \n `payload: {customer_id: 123}`
+activate OdooController
+
+OdooController -> OdooService: Gọi hàm `get_churn_explanation(customer_id=123)`
+activate OdooService
+
+OdooService -> DB: Truy vấn dữ liệu cần thiết của khách hàng 123 \n (lịch sử giao dịch, segment, category_gap...)
+activate DB
+DB --> OdooService: Trả về dữ liệu khách hàng
+deactivate DB
+
+OdooService -> OdooService: **Tính toán SHAP Values** \n (Load model .joblib và thực thi SHAP)
+note right: Đây là bước xử lý nặng về tính toán (CPU-bound)
+
+OdooService -> OdooService: **Thiết kế Prompt Engineering** \n (Kết hợp SHAP values và dữ liệu ngữ cảnh)
+
+OdooService -> OpenAIClient: Khởi tạo và gọi hàm `request_explanation(prompt)`
+activate OpenAIClient
+
+OpenAIClient -> OpenAIClient: Định dạng request body (JSON)
+OpenAIClient -> "api.openai.com": Gửi HTTP POST Request đến API Endpoint \n (url: /v1/chat/completions)
+activate "api.openai.com"
+
+"api.openai.com" --> OpenAIClient: Trả về HTTP Response (JSON) chứa nội dung giải thích
+deactivate "api.openai.com"
+
+OpenAIClient --> OdooService: Trả về chuỗi văn bản giải thích đã được xử lý
+deactivate OpenAIClient
+
+OdooService -> DB: Lưu kết quả giải thích vào trường `x_churn_explanation` \n cho khách hàng 123
+activate DB
+DB --> OdooService: Xác nhận lưu thành công
+deactivate DB
+
+OdooService --> OdooController: Trả về kết quả giải thích
+deactivate OdooService
+
+OdooController --> Browser: Trả về HTTP Response (JSON) chứa nội dung giải thích
+deactivate OdooController
+
+Browser -> Browser: Cập nhật giao diện (UI) \n Hiển thị đoạn văn bản giải thích cho người dùng
+Browser --> Staff: Hiển thị kết quả giải thích
+
+@enduml

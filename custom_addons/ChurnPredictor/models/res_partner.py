@@ -13,6 +13,7 @@ from datetime import timedelta
 import re
 from dateutil.relativedelta import relativedelta
 import json
+import importlib
 
 _logger = logging.getLogger(__name__)
 
@@ -718,14 +719,14 @@ class ResPartner(models.Model):
     @api.model
     def _cron_predict_full_database_fast(self):
         """
-        CRON JOB (TỐI ƯU): Quét toàn bộ DB, tái sử dụng logic lấy feature có sẵn.
+        CRON JOB (ĐÃ ĐƠN GIẢN HÓA): Quét toàn bộ khách hàng ACTIVE.
+        - Ưu tiên sử dụng feature có sẵn, nếu không sẽ tính toán từ đơn hàng.
         - Không tính SHAP để tối ưu tốc độ.
-        - Chỉ lưu xác suất, kết quả Churn và gọi hàm báo cáo tổng hợp.
         """
-        _logger.info("===== BẮT ĐẦU CRON: FULL DATABASE FAST PREDICTION (TỐI ƯU) =====")
+        _logger.info("===== BẮT ĐẦU CRON: QUÉT TOÀN BỘ KHÁCH HÀNG ACTIVE =====")
         start_time = fields.Datetime.now()
         
-        # 1. Load Model và Columns (Giữ nguyên logic của action_predict_churn)
+        # 1. Load Model (Giữ nguyên)
         try:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             ml_assets_dir = os.path.join(current_dir, 'ml_assets')
@@ -733,11 +734,11 @@ class ResPartner(models.Model):
             
             latest_version_dir = os.path.join(ml_assets_dir, sorted(subfolders)[-1]) if subfolders else ml_assets_dir
             model_path = os.path.join(latest_version_dir, 'churn_model.joblib')
-
+    
             if not os.path.exists(model_path):
                 _logger.error("Không tìm thấy model để chạy Cron.")
                 return
-
+    
             model = joblib.load(model_path)
             
             if hasattr(model, 'feature_names_in_'):
@@ -750,62 +751,72 @@ class ResPartner(models.Model):
         except Exception as e:
             _logger.error(f"Lỗi khởi tạo Model trong Cron: {e}")
             return
-
-        # 2. Tìm tất cả khách hàng mục tiêu
-        customers = self.search([
-            ('active', '=', True),
-            '|', ('x_is_imported_data', '=', True), ('sale_order_ids', '!=', False)
-        ])
+    
+        # (ĐÃ SỬA) TÌM TẤT CẢ KHÁCH HÀNG ACTIVE
+        customers = self.search([('active', '=', True)])
         
-        _logger.info(f"Tổng số khách hàng cần quét: {len(customers)}")
+        _logger.info(f"Tổng số khách hàng ACTIVE cần quét: {len(customers)}")
         if not customers:
             return
-
-        # --- BƯỚC 3: THU THẬP FEATURE HÀNG LOẠT (Tái sử dụng logic của bạn) ---
+    
+        # (ĐÃ SỬA) VÒNG LẶP ĐƠN GIẢN HÓA
         customer_data_list = []
         valid_partners = []
-
+    
         for customer in customers:
-            # Ưu tiên lấy dữ liệu đã có sẵn từ các trường x_feat_
+            raw_data = None
+            
+            # Ưu tiên 1: Lấy dữ liệu có sẵn nếu là dữ liệu import
             if customer.x_is_imported_data:
+                _logger.info(f"KH '{customer.name}': Sử dụng dữ liệu import có sẵn.")
                 raw_data = {
-                    'payment_value_sum': customer.x_feat_payment_value_sum,
-                    'payment_value_mean': customer.x_feat_payment_value_mean,
-                    'payment_value_max': customer.x_feat_payment_value_max,
-                    'payment_value_min': customer.x_feat_payment_value_min,
-                    'frequency': customer.x_feat_frequency,
-                    'recency': customer.x_feat_recency,
-                    'review_score_mean': customer.x_feat_review_score_mean,
-                    'review_score_min': customer.x_feat_review_score_min,
-                    'review_score_std': customer.x_feat_review_score_std,
-                    'delivery_days_mean': customer.x_feat_delivery_days_mean,
-                    'delivery_days_max': customer.x_feat_delivery_days_max,
-                    'delivery_delay_days_mean': customer.x_feat_delivery_delay_days_mean,
-                    'delivery_delay_days_max': customer.x_feat_delivery_delay_days_max,
-                    'num_items_sum': customer.x_feat_num_items_sum,
-                    'num_items_mean': customer.x_feat_num_items_mean,
-                    'payment_type_last': customer.x_feat_payment_type_last or '',
-                    'customer_state_last': customer.x_feat_customer_state_last or '',
-                    'product_category_name_english_last': customer.x_feat_product_category_name_english_last or '',
+                    'payment_value_sum': customer.x_feat_payment_value_sum, 'payment_value_mean': customer.x_feat_payment_value_mean, 'payment_value_max': customer.x_feat_payment_value_max,
+                    'payment_value_min': customer.x_feat_payment_value_min, 'frequency': customer.x_feat_frequency, 'recency': customer.x_feat_recency, 'review_score_mean': customer.x_feat_review_score_mean,
+                    'review_score_min': customer.x_feat_review_score_min, 'review_score_std': customer.x_feat_review_score_std, 'delivery_days_mean': customer.x_feat_delivery_days_mean,
+                    'delivery_days_max': customer.x_feat_delivery_days_max, 'delivery_delay_days_mean': customer.x_feat_delivery_delay_days_mean, 'delivery_delay_days_max': customer.x_feat_delivery_delay_days_max,
+                    'num_items_sum': customer.x_feat_num_items_sum, 'num_items_mean': customer.x_feat_num_items_mean, 'payment_type_last': customer.x_feat_payment_type_last or '',
+                    'customer_state_last': customer.x_feat_customer_state_last or '', 'product_category_name_english_last': customer.x_feat_product_category_name_english_last or '',
                 }
+    
+            # Ưu tiên 2: Nếu không, tính toán từ đơn hàng thật
+            elif customer.sale_order_ids:
+                _logger.info(f"KH '{customer.name}': Tính toán feature từ đơn hàng Odoo.")
+                orders = customer.sale_order_ids.filtered(lambda o: o.state in ['sale', 'done'])
+                
+                if not orders:
+                    _logger.warning(f"Bỏ qua KH '{customer.name}' vì không có đơn hàng nào đã xác nhận.")
+                    continue
+    
+                product_count_real = len(orders.mapped('order_line.product_id'))
+                payment_values = orders.mapped('amount_total')
+                payment_value_sum = sum(payment_values)
+                raw_data = {
+                    'payment_value_sum': payment_value_sum, 'payment_value_mean': payment_value_sum / len(payment_values) if payment_values else 0,
+                    'payment_value_max': max(payment_values) if payment_values else 0, 'frequency': len(orders), 'recency': (fields.Datetime.now() - max(orders.mapped('date_order'))).days,
+                    'payment_value_min': min(payment_values) if payment_values else 0, 'review_score_mean': 0, 'review_score_min': 0, 'review_score_std': 0,
+                    'delivery_days_mean': 0, 'delivery_days_max': 0, 'delivery_delay_days_mean': 0, 'delivery_delay_days_max': 0,
+                    'num_items_sum': sum(orders.mapped('order_line.product_uom_qty')), 'num_items_mean': 0, 'payment_type_last': '', 'customer_state_last': customer.state_id.code or '',
+                    'product_category_name_english_last': ''
+                }
+            
+            else:
+                _logger.info(f"Bỏ qua KH '{customer.name}' vì không có dữ liệu để dự đoán.")
+                continue
+    
+            if raw_data:
                 customer_data_list.append(raw_data)
                 valid_partners.append(customer)
-            else:
-                # Nếu không có dữ liệu import, bỏ qua để cron chạy nhanh
-                # Trong tương lai, có thể thêm logic tính toán nhẹ ở đây nếu cần
-                _logger.info(f"Bỏ qua khách hàng '{customer.name}' vì không phải dữ liệu import.")
-                continue
-
+    
         if not customer_data_list:
-            _logger.info("Không có khách hàng nào có dữ liệu feature sẵn sàng để dự đoán.")
+            _logger.info("Không có khách hàng nào hợp lệ để dự đoán sau khi quét.")
             return
-
-        # 4. Tạo DataFrame & Preprocessing (Giống hệt logic của action_predict_churn)
+    
+        # 4. Tạo DataFrame & Preprocessing (Giữ nguyên)
         input_df = pd.DataFrame(customer_data_list)
         
         numeric_cols = [col for col in model_columns if input_df.get(col) is not None and pd.api.types.is_numeric_dtype(input_df[col])]
         for col in numeric_cols:
-             input_df[col] = pd.to_numeric(input_df[col], errors='coerce').fillna(0)
+            input_df[col] = pd.to_numeric(input_df[col], errors='coerce').fillna(0)
         
         categorical_feature_prefixes = ['payment_type_last', 'customer_state_last', 'product_category_name_english_last']
         cols_to_encode = [p for p in categorical_feature_prefixes if p in input_df.columns]
@@ -814,43 +825,58 @@ class ResPartner(models.Model):
         final_input_df = pd.DataFrame(columns=model_columns)
         final_input_df = pd.concat([final_input_df, input_df_encoded], ignore_index=True).fillna(0)
         final_input_df = final_input_df[model_columns]
-
-        # 5. DỰ ĐOÁN HÀNG LOẠT (KHÔNG SHAP)
+    
+        # 5. DỰ ĐOÁN HÀNG LOẠT (Giữ nguyên)
         try:
             predictions = model.predict(final_input_df)
             probabilities = model.predict_proba(final_input_df)[:, 1]
         except Exception as e:
             _logger.error(f"Lỗi khi chạy model.predict hàng loạt: {e}")
             return
-
-        # 6. LƯU KẾT QUẢ HÀNG LOẠT
+    
+        # 6. LƯU KẾT QUẢ HÀNG LOẠT (Giữ nguyên)
         prediction_model = self.env['churn.prediction']
         high_risk_predictions_list = []
         
-        # Dùng transaction để tăng tốc độ ghi dữ liệu
         with self.env.cr.savepoint():
             for i, customer in enumerate(valid_partners):
                 prob = probabilities[i] * 100
-                
-                # Tạo bản ghi dự đoán mới (không có SHAP)
+                orders = customer.sale_order_ids.filtered(lambda o: o.state in ['sale', 'done'])
+                product_count_real = len(orders.mapped('order_line.product_id')) if orders else 1                
                 new_pred = prediction_model.create({
                     'customer_id': customer.id,
                     'prediction_result': 'churn' if predictions[i] == 1 else 'no_churn',
                     'probability': prob,
+                    'product_count': product_count_real,
                 })
                 
-                # Cập nhật mức độ rủi ro (hàm write sẽ được gọi ở đây)
                 customer.write({'x_churn_risk_level': new_pred.probability_level})
                 
                 if new_pred.is_high_risk:
                     high_risk_predictions_list.append(new_pred)
-
+    
         _logger.info(f"Hoàn thành dự đoán cho {len(valid_partners)} khách hàng.")
-
-        # 7. GỬI BÁO CÁO TỔNG HỢP DUY NHẤT (AN TOÀN)
+    
+        # 7. GỬI BÁO CÁO TỔNG HỢP (Giữ nguyên)
         self._send_cron_report_email(high_risk_predictions_list, len(valid_partners), start_time)
         
         _logger.info("===== KẾT THÚC CRON JOB FULL DATABASE =====")
+
+    @api.model
+    def execute_script_from_python(self, script_name, function_name, args):
+        _logger.info(f"Nhận yêu cầu thực thi: {script_name}.{function_name}")
+        try:
+            # Giả định file script nằm trong thư mục 'scripts' của module
+            module_path = f'odoo.addons.ChurnPredictor.scripts.{script_name}'
+            script_module = importlib.import_module(module_path)
+            target_function = getattr(script_module, function_name)
+            
+            # Gọi hàm với self.env và các tham số khác
+            result = target_function(self.env, *args)
+            return f"Thành công: {result}"
+        except Exception as e:
+            _logger.error(f"Lỗi khi thực thi script: {e}", exc_info=True)
+            return f"Lỗi: {e}"
 
     # @api.model
     # def _cron_predict_churn(self):

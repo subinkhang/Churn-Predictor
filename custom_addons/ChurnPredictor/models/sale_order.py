@@ -14,3 +14,4 @@ class SaleOrder(models.Model):
 
     # Thêm trường để lưu nhãn churn lịch sử (đã được tính trong notebook)
     x_churn_label = fields.Integer(string="Historical Churn Label", readonly=True)
+    x_external_order_id = fields.Char(string="External Order ID", index=True, readonly=True)

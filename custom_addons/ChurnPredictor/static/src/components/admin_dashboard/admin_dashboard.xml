@@ -112,11 +112,11 @@
                                     <t t-if="state.selectedModel.latest_csv_path">Push &amp; Retrain</t>
                                     <t t-else="">Retrain (Sample)</t>
                                 </button>
-                                <button t-if="state.selectedModel.state == 'training' || state.selectedModel.state == 'done'" 
+                                <!-- <button t-if="state.selectedModel.state == 'training' || state.selectedModel.state == 'done'" 
                                         class="btn btn-info text-white me-2" 
                                         t-on-click="checkDownload">
                                     <i class="fa fa-download me-1"/>Check &amp; Download Model
-                                </button>
+                                </button> -->
                             </div>
                         </div>
 

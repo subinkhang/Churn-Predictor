@@ -6,14 +6,9 @@
     -->
 
     <!-- 1. Định nghĩa Action Window đa chế độ xem -->
-    <record id="action_churn_main_dashboard" model="ir.actions.act_window">
+    <!-- <record id="action_churn_main_dashboard" model="ir.actions.act_window">
         <field name="name">Churn Dashboard</field>
         <field name="res_model">churn.prediction</field>
-        <!--
-            Đây là phần quan trọng nhất:
-            - view_mode: Liệt kê tất cả các chế độ xem bạn muốn.
-            - Chế độ xem đầu tiên trong danh sách (graph) sẽ là chế độ mặc định.
-        -->
         <field name="view_mode">graph,pivot,kanban,tree</field>
         <field name="context">{'form_view_ref': 'churn_prediction_spa_action_tag'}</field>
         <field name="help" type="html">
@@ -21,7 +16,7 @@
                 No data found. Create some predictions to see your dashboard!
             </p>
         </field>
-    </record>
+    </record> -->
 
     <!-- 2. Menu Item để gọi Action này (giữ nguyên) -->
     <menuitem

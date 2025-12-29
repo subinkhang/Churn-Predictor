@@ -1,0 +1,92 @@
+@startuml
+title Biểu đồ Tuần tự - Luồng Kích hoạt Huấn luyện Mô hình
+
+' --- Style Settings ---
+autonumber "<b>[0]"
+skinparam sequence {
+    ActorBorderColor #2C3E50
+    ActorBackgroundColor #A9DCDF
+    LifeLineBorderColor #34495E
+    ParticipantBorderColor #34495E
+    ParticipantBackgroundColor #ECF0F1
+    ArrowColor #2C3E50
+    DatabaseBorderColor #34495E
+    DatabaseBackgroundColor #F4D03F
+}
+
+' --- Define Participants ---
+actor "Quản trị viên" as Admin
+participant "Giao diện Odoo (Browser)" as Browser
+participant "Controller (Odoo Backend)" as OdooController
+participant "Kaggle Connector Service" as KaggleService
+participant "Kaggle API" as KaggleAPI
+
+' --- Message Flow ---
+
+Admin -> Browser: Nhấn nút "Push & Retrain"
+Browser -> OdooController: Gửi HTTP Request: \n `POST /churn_predictor/retrain`
+activate OdooController
+
+OdooController -> KaggleService: Gọi hàm `run_kaggle_pipeline(csv_path, ...)`
+activate KaggleService
+
+group **Giai đoạn 1: Đẩy dữ liệu lên Kaggle**
+    KaggleService -> KaggleService: Xác thực với Kaggle (authenticate)
+    KaggleService -> KaggleAPI: `dataset_create_version(folder, notes)`
+    activate KaggleAPI
+    KaggleAPI --> KaggleService: Xác nhận tạo phiên bản dataset mới
+    deactivate KaggleAPI
+end
+
+group **Giai đoạn 2: Kích hoạt Kernel để Huấn luyện**
+    KaggleService -> KaggleAPI: `kernels_push(folder)`
+    activate KaggleAPI
+    KaggleAPI --> KaggleService: Xác nhận Kernel đã được kích hoạt
+    deactivate KaggleAPI
+end
+
+KaggleService -> KaggleService: Lưu `run_id` và `version_tag` để theo dõi
+KaggleService --> OdooController: Trả về `run_id` để hiển thị trạng thái "Đang huấn luyện"
+deactivate KaggleService
+
+OdooController --> Browser: Trả về HTTP Response (JSON) \n `{status: 'training', run_id: '...'}`
+deactivate OdooController
+
+Browser -> Browser: Cập nhật UI, hiển thị trạng thái "Training..."
+
+... Vài phút/giờ sau ...
+
+participant "Tác vụ Tự động (Odoo Scheduler)" as Scheduler
+
+Scheduler -> KaggleService: **[Polling]** Gọi hàm định kỳ \n `check_and_download_if_ready(run_id, ...)`
+activate KaggleService
+
+group **Giai đoạn 3: Kiểm tra trạng thái và Tải về Kết quả**
+    KaggleService -> KaggleAPI: `kernels_status(kernel_slug)`
+    activate KaggleAPI
+    KaggleAPI --> KaggleService: Trả về trạng thái Kernel (ví dụ: 'running' hoặc 'complete')
+    deactivate KaggleAPI
+
+    alt Trạng thái là 'complete'
+        KaggleService -> KaggleAPI: `kernels_output(kernel_slug, path)`
+        activate KaggleAPI
+        KaggleAPI --> KaggleService: Trả về các tệp kết quả (model.joblib, features.csv)
+        deactivate KaggleAPI
+        
+        KaggleService -> KaggleService: **Xử lý & Di chuyển các tệp Artifacts** \n (Lưu model vào thư mục timestamp, lưu features vào thư mục import)
+        
+        participant "SMTP Service" as SMTPSender
+        KaggleService -> SMTPSender: Gọi hàm `send_email(to, subject, body)`
+        activate SMTPSender
+        SMTPSender --> KaggleService: Xác nhận gửi email thành công
+        deactivate SMTPSender
+        
+    else Trạng thái là 'running'
+        KaggleService -> KaggleService: Bỏ qua, chờ lần kiểm tra tiếp theo
+    else Trạng thái là 'error'
+        KaggleService -> SMTPSender: Gửi email thông báo lỗi cho Admin
+    end
+end
+
+deactivate KaggleService
+@enduml

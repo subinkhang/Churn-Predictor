@@ -1,0 +1,62 @@
+@startuml
+title Luồng Hoạt động - Huấn luyện Mô hình Mới
+
+|Quản trị viên (Admin)|
+start
+:Truy cập trang "Model Admin";
+:Chọn tệp dữ liệu huấn luyện (.csv);
+:Nhấn nút "Upload CSV";
+
+|Hệ thống Odoo|
+:Tiếp nhận tệp CSV;
+:Kiểm tra (Validate) cấu trúc tệp;
+if (Cấu trúc hợp lệ?) then (yes)
+  :Lưu tệp vào khu vực tạm thời;
+  :Hiển thị thông báo "Sẵn sàng huấn luyện";
+  |Quản trị viên (Admin)|
+  :Nhấn nút "Push & Retrain";
+  |Hệ thống Odoo|
+  :Hiển thị trạng thái "Loading...";
+  note right: Gửi file CSV đến Kaggle thông qua API
+  |Kaggle API|
+  :Tạo phiên bản Dataset mới;
+  |Hệ thống Odoo|
+  :Hiển thị trạng thái "Training...";
+  note right: Trigger Kaggle Kernel để bắt đầu chạy Notebook
+  |Kaggle API|
+  :Kích hoạt tiến trình huấn luyện;
+  |Hệ thống Kaggle|
+  fork
+    :Cấp phát tài nguyên (GPU);
+    :Thực thi Notebook huấn luyện (eCCP-Net);
+  fork again
+    |Hệ thống Odoo|
+    :Lặp lại kiểm tra trạng thái Kernel;
+    while (Kernel đang chạy?) is (yes)
+      :Chờ 5 phút;
+    endwhile (no)
+  end fork
+  |Hệ thống Kaggle|
+  :Huấn luyện hoàn tất;
+  :Lưu kết quả (file .joblib) vào Output;
+  |Hệ thống Odoo|
+  :Hiển thị trạng thái "Downloading model...";
+  |Kaggle API|
+  :Cho phép tải về tệp .joblib;
+  |Hệ thống Odoo|
+  :Tải tệp mô hình về máy chủ;
+  :Lưu tệp vào thư mục phiên bản (có timestamp);
+  :Cập nhật cơ sở dữ liệu về phiên bản mô hình active;
+  :Gửi Email thông báo thành công cho Admin;
+  |Quản trị viên (Admin)|
+  :Nhận Email thông báo;
+  stop
+else (no)
+  |Hệ thống Odoo|
+  :Hiển thị thông báo lỗi "Invalid CSV Structure";
+  |Quản trị viên (Admin)|
+  :Kết thúc quy trình;
+  stop
+endif
+
+@enduml

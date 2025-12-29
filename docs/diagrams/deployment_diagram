@@ -1,0 +1,95 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+' --- Style Definitions for clarity ---
+skinparam component {
+    BackgroundColor<<Odoo>> #714B67
+    BackgroundColor<<Postgres>> #336791
+    BackgroundColor<<DataScience>> #F4D03F
+    BorderColor #2C3E50
+    ArrowColor #2C3E50
+}
+skinparam node {
+    BackgroundColor #ECF0F1
+    BorderColor #34495E
+}
+skinparam database {
+    BackgroundColor #A9DCDF
+    BorderColor #34495E
+}
+
+
+' --- Main Node: The On-Premise Server running Docker ---
+node "Máy chủ Doanh nghiệp (On-Premise Server)" as DockerHost {
+
+    node "Môi trường Docker" as DockerEnv {
+    
+        artifact "<b>Odoo Container</b>\n[Image: churn-predictor:latest]" as OdooContainer {
+        
+            component "<b>Odoo 17 Application</b>\n(Python)" as OdooApp <<Odoo>>
+            
+            package "Module Churn Predictor" {
+                component "<b>Logic Layer</b>\n(Controllers, Services, Models)" as ChurnLogic
+                component "<b>Inference Engine</b>\n(Scikit-learn, XGBoost, SHAP)" as InferenceEngine <<DataScience>>
+            }
+            
+            OdooApp -- ChurnLogic
+            ChurnLogic -- InferenceEngine
+        }
+
+        database "<b>PostgreSQL Container</b>\n[Image: postgres:13]" as PostgresContainer {
+            component "<b>PostgreSQL 13 Server</b>" as PostgresServer <<Postgres>>
+            storage "<b>`postgres_data` Volume</b>\n(Data Persistence)" as DbVolume
+        }
+    }
+}
+
+
+' --- External Cloud Services Nodes ---
+cloud "Internet" {
+    node "Nền tảng Kaggle" as KaggleCloud {
+        component "<b>Kaggle API</b>" as KaggleAPI
+        component "<b>Kaggle Kernel (GPU)</b>\n(eCCP-Net Training)" as KaggleKernel <<DataScience>>
+        
+        KaggleAPI -- KaggleKernel
+    }
+
+    node "Nền tảng OpenAI" as OpenAICloud {
+        component "<b>OpenAI API (GPT)</b>" as OpenAI_API
+    }
+}
+
+
+' --- User Node ---
+actor "Người dùng" as User
+
+
+' --- Relationships and Communication Paths ---
+
+User -> OdooContainer : "Sử dụng ứng dụng qua\nTrình duyệt Web (HTTPS)"
+
+OdooContainer -> PostgresContainer : "Kết nối Cơ sở dữ liệu\n(TCP/IP qua Bridge Network, Port 5432)"
+
+OdooContainer -> KaggleAPI : "Gửi dữ liệu & Kích hoạt Huấn luyện\n(HTTPS / REST API)"
+
+OdooContainer -> OpenAI_API : "Gửi Prompt để Giải thích\n(HTTPS / REST API)"
+
+' --- Map physical ports and volumes ---
+note right of OdooContainer
+  <b>Cổng ánh xạ (Port Mapping):</b>
+  Host:<b>8069</b> -> Container:<b>8069</b> (Web)
+  Host:<b>8071</b> -> Container:<b>8071</b> (Longpolling)
+end note
+
+note left of PostgresContainer
+  <b>Cổng ánh xạ (Port Mapping):</b>
+  Host:<b>5433</b> -> Container:<b>5432</b> (DB Access)
+end note
+
+note bottom of ChurnLogic
+  <b>Volume Mapping:</b>
+  Host: `./custom_addons`
+  -> Container: `/mnt/extra-addons`
+end note
+
+@enduml

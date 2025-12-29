@@ -1,3 +1,5 @@
+from . import kaggle_connector
+kaggle_connector._ultimate_ssl_patch_for_faketime()
 from . import models
 from . import res_partner
 from . import churn_prediction

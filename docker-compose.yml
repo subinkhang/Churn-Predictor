@@ -35,11 +35,6 @@ services:
       PGDATABASE: ChurnPredictor_v2
       ADMIN_PASSWORD: admin123
       TZ: Asia/Ho_Chi_Minh
-      LD_PRELOAD: /usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1
-
-      FAKETIME: "2018-10-18 18:56:00"
-
-      DONT_FAKE_MONOTONIC: 1
       SMTP_SERVER: smtp.gmail.com
       SMTP_PORT: 587
       SMTP_USER: 22520622@gm.uit.edu.vn
@@ -48,6 +43,7 @@ services:
       
       # Tham số nhận báo cáo (Cấp 2) - Bạn cần đảm bảo nó tồn tại
       CHURN_PREDICTOR_RECIPIENT_EMAIL: subinkhang102@gmail.com
+      KAGGLE_DISABLE_SSL_VERIFY: 1
     volumes:
       - odoo_web_data:/var/lib/odoo
       # Mount thư mục addon tùy chỉnh

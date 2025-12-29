@@ -112,27 +112,52 @@ export class AdminModelDashboard extends Component {
         if (!model) return;
 
         if (!model.latest_csv_path) {
-            this.notification.add("Warning: Using sample data.", { type: "warning" });
+            this.notification.add("Warning: No new data uploaded. Using sample data for training.", { type: "warning", sticky: true });
         }
 
-        this.notification.add("Connecting to Kaggle...", { type: "info" });
+        this.notification.add("Triggering Kaggle Kernel... Please wait.", { type: "info" });
         
-        try {
-            const result = await this.orm.call('churn.model.version', 'action_trigger_retrain', [model.id]);
+        // Thêm một state để vô hiệu hóa nút, tránh click nhiều lần
+        this.state.isTraining = true;
 
-            if (result.status === 'success') {
-                this.notification.add("Kaggle started! Polling for results...", { type: "success" });
-                this.state.selectedModel.state = 'training';
-                this.state.selectedModel.training_log = "--- KAGGLE STARTED ---\nWaiting for kernel execution...";
+        try {
+            // Lời gọi RPC đến hàm Python không thay đổi
+            const resultAction = await this.orm.call('churn.model.version', 'action_trigger_retrain', [model.id]);
+
+            // --- PHẦN XỬ LÝ KẾT QUẢ TRẢ VỀ (ĐÃ CẢI TIẾN) ---
+            // Hàm Python mới của bạn trả về một Odoo Action (display_notification)
+            // Chúng ta chỉ cần thực thi action đó.
+            if (resultAction && resultAction.tag === 'display_notification') {
+                this.actionService.doAction(resultAction);
                 
-                // Bắt đầu check tự động
+                // Cập nhật giao diện ngay lập tức để người dùng thấy trạng thái thay đổi
+                this.state.selectedModel.state = 'training';
+                this.state.selectedModel.training_log = "--- KAGGLE TRIGGERED ---\nWaiting for kernel to start execution...";
+                
+                // Bắt đầu quá trình kiểm tra trạng thái tự động
                 this._startPolling(model.id);
             } else {
-                this.notification.add("Error: " + result.message, { type: "danger" });
+                // Trường hợp dự phòng nếu Python không trả về action
+                this.notification.add("Something unexpected happened. Check logs.", { type: "warning" });
             }
+
         } catch (error) {
-            console.error(error);
-            this.notification.add("RPC Error: " + error.message.data.message, { type: "danger" });
+            // --- PHẦN XỬ LÝ LỖI (ĐÃ SỬA LỖI 'undefined') ---
+            console.error("RPC Error during triggerRetrain:", error);
+            
+            // Cách lấy message lỗi chính xác và an toàn từ đối tượng error của Odoo
+            const errorMessage = error.data?.message || error.message || "An unknown error occurred while triggering the process.";
+            
+            this.notification.add(errorMessage, {
+                title: "Trigger Failed",
+                type: "danger",
+                sticky: true // Giữ thông báo lỗi lại để người dùng đọc
+            });
+        } finally {
+            // Dù thành công hay thất bại, tắt trạng thái loading
+            this.state.isTraining = false;
+            // Tải lại danh sách để cập nhật log lỗi từ backend (nếu có)
+            this.loadModelsList();
         }
     }
 
@@ -166,36 +191,60 @@ export class AdminModelDashboard extends Component {
 
     // --- [FIX LỖI 1] LOGIC POLLING ---
     _startPolling(modelId) {
-        if (this.pollingInterval) clearInterval(this.pollingInterval);
+        // Xóa interval cũ nếu có để tránh chạy song song
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+        }
 
-        // Check mỗi 15 giây
-        this.pollingInterval = setInterval(async () => {
-            if (!this.state.selectedModel || this.state.selectedModel.id !== modelId) return;
+        const poll = async () => {
+            // Dừng polling nếu người dùng đã chuyển sang xem model khác
+            if (!this.state.selectedModel || this.state.selectedModel.id !== modelId) {
+                this._stopPolling();
+                return;
+            }
 
             try {
-                const check = await this.orm.call('churn.model.version', 'check_training_status', [modelId]);
+                // Gọi backend để kiểm tra status
+                const result = await this.orm.call('churn.model.version', 'check_training_status', [modelId]);
 
-                // Cập nhật Log
-                this.state.selectedModel.training_log += `\n[${new Date().toLocaleTimeString()}] ${check.message}`;
-
-                // [QUAN TRỌNG] Kiểm tra kỹ status trả về để dừng vòng lặp
-                if (check.status === 'done') {
-                    clearInterval(this.pollingInterval); // DỪNG NGAY
-                    this.state.selectedModel.state = 'done';
-                    this.notification.add("Training Finished & Downloaded!", { type: "success", sticky: true });
-                    await this.loadModelsList();
-                } 
-                else if (check.status === 'error') {
-                    clearInterval(this.pollingInterval); // DỪNG NGAY
-                    this.notification.add("Training Failed: " + check.message, { type: "danger", sticky: true });
+                // Cập nhật log trên UI
+                if (this.state.selectedModel && this.state.selectedModel.id === modelId) {
+                    this.state.selectedModel.training_log += `\n[${new Date().toLocaleTimeString()}] ${result.message}`;
                 }
-                // Nếu 'running' thì cứ chạy tiếp
 
-            } catch (err) {
-                console.error("Polling error", err);
-                // Nếu lỗi mạng 3 lần liên tiếp thì dừng (tránh spam server)
+                // Kiểm tra kết quả và dừng polling nếu cần
+                if (result.status === 'done' || result.status === 'error') {
+                    this._stopPolling(); // Dừng vòng lặp
+                    if (result.status === 'done') {
+                        this.notification.add("Training Finished & Downloaded!", { type: "success", sticky: true });
+                    } else {
+                        this.notification.add(result.message, { type: "danger", title: "Training Failed", sticky: true });
+                    }
+                    // Tải lại toàn bộ danh sách để có dữ liệu mới nhất
+                    await this.loadModelsList();
+                }
+            } catch (error) {
+                // XỬ LÝ LỖI RPC (KeyError từ backend sẽ nhảy vào đây)
+                console.error("Polling RPC Error:", error);
+                const errorMessage = error.data?.message || "Polling failed. Check Odoo logs.";
+                this.notification.add(errorMessage, { type: 'danger', title: 'System Error', sticky: true });
+                
+                this._stopPolling(); // Dừng polling khi có lỗi nghiêm trọng
+                await this.loadModelsList(); // Tải lại để cập nhật trạng thái lỗi
             }
-        }, 15000); 
+        };
+        
+        // Chạy lần đầu ngay lập tức
+        poll();
+        // Sau đó lặp lại mỗi 15 giây
+        this.pollingInterval = setInterval(poll, 15000); 
+    }
+
+    _stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
     }
 
     // --- 4. CRUD ---

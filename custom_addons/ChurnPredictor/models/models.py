@@ -128,6 +128,30 @@ class ChurnPrediction(models.Model):
         default=1, # Hoặc một giá trị mặc định hợp lý
         help="The number of distinct products the customer has purchased."
     )
+    
+    x_feat_segment = fields.Integer(
+        string="Customer Segment",
+        related='customer_id.x_feat_segment',
+        store=True, # BẮT BUỘC để có thể group_by
+        readonly=True
+    )
+
+    # Lấy trường "Last Product Category" từ khách hàng liên quan
+    x_feat_product_category_name_english_last = fields.Char(
+        string="Last Product Category",
+        related='customer_id.x_feat_product_category_name_english_last',
+        store=True, # BẮT BUỘC để có thể group_by
+        readonly=True
+    )
+
+    # Lấy trường "Category Avg Gap" từ khách hàng liên quan
+    x_feat_category_avg_gap = fields.Float(
+        string="Category Avg Gap (Days)",
+        related='customer_id.x_feat_category_avg_gap',
+        store=True, # BẮT BUỘC để có thể sử dụng làm measure
+        readonly=True,
+        group_operator='avg' # Chỉ định phép tính mặc định là trung bình
+    )
 
     @api.depends('probability_level')
     def _compute_is_high_risk(self):
@@ -211,24 +235,26 @@ class ChurnPrediction(models.Model):
         
     def action_generate_ai_explanation(self):
         """
-        [UPDATED v6] Nâng cấp PROMPT: Tích hợp định nghĩa chiến lược Segment 0-4.
+        [ĐÃ SỬA] Chuyển sang sử dụng API của OpenAI (GPT) để tạo giải thích.
         """
         self.ensure_one()
         
-        _logger.info(">>> [AI XAI] Bắt đầu action_generate_ai_explanation cho prediction ID: %d", self.id)
+        _logger.info(">>> [AI XAI - OpenAI] Bắt đầu action_generate_ai_explanation cho prediction ID: %d", self.id)
 
-        # --- BƯỚC 1: LẤY CẤU HÌNH ---
+        # --- BƯỚC 1: LẤY CẤU HÌNH (ĐÃ SỬA) ---
         config_param = self.env['ir.config_parameter'].sudo()
-        api_key = config_param.get_param('churn_predictor.google_ai_api_key')
-        api_endpoint = config_param.get_param('churn_predictor.google_ai_endpoint')
+        # <<< THAY ĐỔI: Lấy key và endpoint của OpenAI >>>
+        api_key = config_param.get_param('churn_predictor.openai_api_key')
+        api_endpoint = config_param.get_param('churn_predictor.openai_api_endpoint')
 
-        if not api_key or not api_endpoint:
-            raise UserError(_("AI Service is not configured."))
+        if not api_key or not api_endpoint or api_key == 'sk-YourSecretKeyHere':
+            raise UserError(_("OpenAI API is not configured. Please set your API key in Technical Settings."))
         
         if not self.shap_data_json:
             raise UserError(_("No SHAP data available."))
 
-        # --- BƯỚC 2: CHUẨN BỊ DỮ LIỆU SHAP ---
+        # --- BƯỚC 2: CHUẨN BỊ DỮ LIỆU VÀ PROMPT (Giữ nguyên logic cũ) ---
+        # (Toàn bộ logic chuẩn bị prompt của bạn từ BƯỚC 2 đến BƯỚC 3 vẫn giữ nguyên)
         try:
             shap_data = json.loads(self.shap_data_json)
         except json.JSONDecodeError:
@@ -352,59 +378,57 @@ class ChurnPrediction(models.Model):
         """
         
         # --- BƯỚC 4: GỌI API (NO SSL) ---
-        headers = {'Content-Type': 'application/json'}
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {api_key}' # OpenAI dùng Bearer Token Authentication
+        }
+        
         payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": { "temperature": 0.7, "maxOutputTokens": 4096 },
-            "safetySettings": [
-                { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
-                { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
-                { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
-                { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
-            ]
+            "model": "gpt-4o-mini", # Hoặc "gpt-3.5-turbo", "gpt-4o". gpt-4o-mini rẻ và nhanh.
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2048
         }
         
         try:
-            import requests
-            # Tắt cảnh báo SSL
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
             response = requests.post(
-                f"{api_endpoint}?key={api_key}", 
+                api_endpoint, 
                 headers=headers, 
                 json=payload,
-                timeout=30,
-                verify=False 
+                timeout=60 # Tăng timeout cho các model lớn
             )
-            response.raise_for_status()
+            response.raise_for_status() # Tự động báo lỗi nếu status code là 4xx hoặc 5xx
             
             response_data = response.json()
             
-            if 'candidates' in response_data and response_data['candidates']:
-                candidate = response_data['candidates'][0]
-                finish_reason = candidate.get('finishReason')
+            # <<< THAY ĐỔI: Cách lấy nội dung trả về từ OpenAI >>>
+            if 'choices' in response_data and response_data['choices']:
+                raw_explanation_md = response_data['choices'][0]['message']['content']
+                finish_reason = response_data['choices'][0].get('finish_reason')
                 
-                valid_reasons = ['STOP', 'MAX_TOKENS']
-                if finish_reason and finish_reason not in valid_reasons:
-                    raise UserError(_("AI refused to generate explanation. Reason: %s", finish_reason))
+                html_explanation = markdown2.markdown(raw_explanation_md)
                 
-                if 'content' in candidate and 'parts' in candidate['content']:
-                    raw_explanation_md = candidate['content']['parts'][0]['text']
-                else:
-                    raise UserError(_("AI response structure is invalid."))
+                if finish_reason == 'length':
+                    html_explanation += "<p><em>(Kết quả bị cắt ngắn do giới hạn độ dài token.)</em></p>"
+
+                self.write({'shap_ai_explanation': html_explanation})
+                _logger.info(">>> Đã lưu kết quả XAI từ OpenAI thành công.")
             else:
-                raise UserError(_("AI returned an empty response."))
+                # Ghi log response lỗi để debug
+                _logger.error("Phản hồi từ OpenAI không hợp lệ: %s", response_data)
+                raise UserError(_("AI returned an invalid response structure."))
 
-            html_explanation = markdown2.markdown(raw_explanation_md)
-            if finish_reason == 'MAX_TOKENS':
-                html_explanation += "<p><em>(Kết quả bị cắt ngắn do giới hạn độ dài.)</em></p>"
-
-            self.write({'shap_ai_explanation': html_explanation})
-            _logger.info(">>> Đã lưu kết quả XAI (Segment Intelligence) thành công.")
-
+        except requests.exceptions.HTTPError as e:
+            # Ghi log chi tiết hơn về lỗi HTTP
+            _logger.error("Lỗi HTTP khi gọi OpenAI API: %s - Response: %s", e, e.response.text)
+            raise UserError(_("Error calling OpenAI API: %s", e.response.text))
         except Exception as e:
-            _logger.error("Lỗi hệ thống XAI: %s", e)
+            _logger.error("Lỗi hệ thống khi gọi OpenAI: %s", e)
             raise UserError(_("System Error: %s", str(e)))
 
         return True

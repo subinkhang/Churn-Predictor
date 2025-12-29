@@ -1,0 +1,104 @@
+@startuml
+' --- Style Settings for better readability ---
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor<<Management>> #A9DCDF
+    BackgroundColor<<Analytics>> #F4D03F
+    BackgroundColor<<Operational>> #82E0AA
+    BorderColor #2C3E50
+    ArrowColor #2C3E50
+}
+skinparam package {
+    BackgroundColor #ECF0F1
+    BorderColor #34495E
+    FontColor #34495E
+}
+left to right direction
+
+' --- Define Actors ---
+actor "Quản trị viên Hệ thống" as Admin
+actor "Quản lý Marketing/CRM" as Manager
+actor "Nhân viên CSKH/CRM" as Staff
+
+' --- Group Use Cases into Packages for clarity ---
+package "Phân hệ Quản trị & Huấn luyện" {
+    usecase "Cấu hình Hệ thống" as UC_Config <<Management>>
+    usecase "Quản lý Mô hình" as UC_ManageModel <<Management>>
+    usecase "Nhập dữ liệu Huấn luyện" as UC_UploadData <<Management>>
+    usecase "Kích hoạt Huấn luyện từ xa" as UC_TrainModel <<Management>>
+}
+
+package "Phân hệ Phân tích & Trực quan hóa" {
+    usecase "Xem Dashboard Tổng quan" as UC_ViewDashboard <<Analytics>>
+    usecase "Phân tích Tương quan" as UC_CorrelationAnalysis <<Analytics>>
+    usecase "Xem Chi tiết Rủi ro Khách hàng" as UC_ViewCustomerDetails <<Analytics>>
+    usecase "Xem Dashboard Chi tiết KH" as UC_ViewCustomerDashboard <<Analytics>>
+    usecase "Trực quan hóa SHAP" as UC_VisualizeSHAP <<Analytics>>
+}
+
+package "Phân hệ Tác nghiệp & Can thiệp" {
+    usecase "Dự báo Rời bỏ Thủ công" as UC_ManualPredict <<Operational>>
+    usecase "Yêu cầu AI Giải thích" as UC_AI_Explain <<Operational>>
+    usecase "Yêu cầu AI Soạn Email" as UC_AI_Email <<Operational>>
+    usecase "Gửi Email Giữ chân" as UC_SendEmail <<Operational>>
+}
+
+' --- Define Actor to Use Case relationships ---
+
+' Administrator's Use Cases
+Admin -- UC_Config
+Admin -- UC_ManageModel
+
+' Manager's Use Cases
+Manager -- UC_ViewDashboard
+Manager -- UC_CorrelationAnalysis
+Manager -- UC_ViewCustomerDetails
+
+' Staff's Use Cases
+Staff -- UC_ViewCustomerDetails
+Staff -- UC_ManualPredict
+Staff -- UC_SendEmail
+
+' --- Define relationships between Use Cases ---
+
+' "Quản lý Mô hình" is composed of two main steps
+UC_ManageModel ..> UC_UploadData : <<include>>
+UC_ManageModel ..> UC_TrainModel : <<include>>
+
+' "Xem Chi tiết Rủi ro Khách hàng" is the entry point to a detailed dashboard
+UC_ViewCustomerDetails <.. UC_ViewCustomerDashboard : <<extend>>
+
+' The detailed customer dashboard includes SHAP and AI interactions
+UC_ViewCustomerDashboard ..> UC_VisualizeSHAP : <<include>>
+UC_ViewCustomerDashboard ..> UC_AI_Explain : <<include>>
+
+' Sending an email can be enhanced by AI
+UC_SendEmail <.. UC_AI_Email : <<extend>>
+
+
+' --- Add System Boundary ---
+rectangle "Hệ thống Churn Predictor" {
+    (UC_Config)
+    (UC_ManageModel)
+    (UC_ViewDashboard)
+    (UC_CorrelationAnalysis)
+    (UC_ViewCustomerDetails)
+    (UC_ManualPredict)
+    (UC_SendEmail)
+}
+
+' --- Notes for explanation ---
+note right of UC_TrainModel
+  **Trigger Kaggle Kernel:**
+  Quy trình này bao gồm việc
+  gọi Kaggle API để huấn luyện
+  và tự động tải về file .joblib.
+end note
+
+note right of UC_AI_Email
+  **AI Copilot Feature:**
+  Người dùng có thể tự soạn email
+  hoặc chọn "Yêu cầu AI Soạn" để
+  hệ thống tạo nội dung cá nhân hóa.
+end note
+@enduml

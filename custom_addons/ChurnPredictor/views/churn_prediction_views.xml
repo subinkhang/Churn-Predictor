@@ -11,16 +11,16 @@
     <!-- Menu gốc (đảm bảo nó tồn tại) -->
     <menuitem 
         id="menu_churn_root"
-        name="Churn Analysis"
+        name="Churn Filter Dashboard"
         sequence="10"/>
 
     <!-- Menu con, gọi đến Client Action mới của chúng ta -->
-    <menuitem 
+    <!-- <menuitem 
         id="menu_churn_prediction_list"
         name="Predictions"
         parent="menu_churn_root"
         action="action_churn_prediction_spa"
-        sequence="1"/>
+        sequence="1"/> -->
 
     <record id="view_churn_prediction_graph" model="ir.ui.view">
         <field name="name">churn.prediction.graph</field>
@@ -91,12 +91,11 @@
         Khi người dùng vào menu "Predictions" hoặc bấm Smart Button,
         họ sẽ có thể chuyển đổi qua lại giữa các view này.
     -->
-    <record id="action_churn_prediction" model="ir.actions.act_window">
+    <!-- <record id="action_churn_prediction" model="ir.actions.act_window">
         <field name="name">Churn Predictions</field>
         <field name="res_model">churn.prediction</field>
-        <!-- THÊM graph và pivot VÀO ĐÂY -->
         <field name="view_mode">tree,form,graph,pivot</field>
         <field name="context">{'form_view_ref': 'churn_prediction_spa_action_tag'}</field>
-    </record>
+    </record> -->
 
 </odoo>
