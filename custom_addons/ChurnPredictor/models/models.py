@@ -58,6 +58,8 @@ class ChurnPrediction(models.Model):
     probability = fields.Float(
         string='Churn Probability (%)',
         digits=(16, 2), # Hiển thị với 2 chữ số thập phân.
+        store=True, # Thêm store=True để đảm bảo hiệu suất
+        group_operator='avg', # THÊM DÒNG QUAN TRỌNG NÀY VÀO
         help="The probability (from 0 to 100) that the customer will churn, as calculated by the model."
     )
 
@@ -151,6 +153,35 @@ class ChurnPrediction(models.Model):
         store=True, # BẮT BUỘC để có thể sử dụng làm measure
         readonly=True,
         group_operator='avg' # Chỉ định phép tính mặc định là trung bình
+    )
+    
+    x_feat_payment_type_last = fields.Char(
+        string="Last Payment Type",
+        related='customer_id.x_feat_payment_type_last',
+        store=True,
+        readonly=True
+    )
+    
+    x_feat_recency = fields.Integer(
+        string="Recency (Days)",
+        related='customer_id.x_feat_recency',
+        store=True,
+        readonly=True,
+        group_operator='avg'
+    )
+    x_feat_frequency = fields.Integer(
+        string="Frequency",
+        related='customer_id.x_feat_frequency',
+        store=True,
+        readonly=True,
+        group_operator='avg'
+    )
+    x_feat_payment_value_sum = fields.Float(
+        string="Total Spent",
+        related='customer_id.x_feat_payment_value_sum',
+        store=True,
+        readonly=True,
+        group_operator='avg'
     )
 
     @api.depends('probability_level')
@@ -279,17 +310,17 @@ class ChurnPrediction(models.Model):
 
         # === [NEW] LOGIC ĐỊNH NGHĨA SEGMENT ===
         segment_definitions = {
-            2: """**Segment 2: "Khách hàng Ngôi sao" (Active High Value)**
-            - Chân dung: Khách hàng lý tưởng, chi tiêu cao, mới tương tác. Đang 'nuôi sống' doanh nghiệp.
-            - Chiến lược: Chăm sóc đặc biệt, upsell, gửi mã giảm giá khuyến khích mua tiếp. Đừng để họ nguội lạnh.""",
+            0: """**Segment 0: "Khách hàng Mới / Tiềm năng" (New & Active Low Value)**
+            - Chân dung: Khách mới hoặc hay săn sale, Recency tốt nhưng chưa dám chi lớn.
+            - Chiến lược: Dễ chuyển đổi nhất. Hãy Cross-sell sản phẩm giá trị cao hơn hoặc bán theo Combo.""",
             
             1: """**Segment 1: "VIP Ngủ đông" (At-Risk VIP)**
             - Chân dung: Từng chi rất nhiều tiền cho món giá trị lớn nhưng đang có dấu hiệu rời bỏ (Churn).
             - Chiến lược: Cần chiến dịch 'Win-back' khẩn cấp. Gửi email nhắc nhở, đề xuất phụ kiện đi kèm món đã mua.""",
             
-            0: """**Segment 0: "Khách hàng Mới / Tiềm năng" (New & Active Low Value)**
-            - Chân dung: Khách mới hoặc hay săn sale, Recency tốt nhưng chưa dám chi lớn.
-            - Chiến lược: Dễ chuyển đổi nhất. Hãy Cross-sell sản phẩm giá trị cao hơn hoặc bán theo Combo.""",
+            2: """**Segment 2: "Khách hàng Ngôi sao" (Active High Value)**
+            - Chân dung: Khách hàng lý tưởng, chi tiêu cao, mới tương tác. Đang 'nuôi sống' doanh nghiệp.
+            - Chiến lược: Chăm sóc đặc biệt, upsell, gửi mã giảm giá khuyến khích mua tiếp. Đừng để họ nguội lạnh.""",
             
             3: """**Segment 3: "Khách hàng Phổ thông đang trôi đi" (Drifting)**
             - Chân dung: Mua đồ giá trị nhỏ, đã bắt đầu quên lãng thương hiệu. Số lượng đông.
@@ -499,25 +530,20 @@ class ChurnPrediction(models.Model):
 
     def action_send_ai_explanation_email(self):
         """
-        Action gửi email phân tích AI (Phiên bản Render Thủ Công để sửa lỗi hiển thị).
+        Action gửi email phân tích AI.
+        [PHIÊN BẢN CUỐI]: Thực hiện AI Call thứ hai và điền thông tin thương hiệu vào email.
         """
         self.ensure_one()
-        import os # Cần import này để lấy biến môi trường
+        import os
+        import re
 
-        # --------------------------------------------------------------------------
-        # BƯỚC a: KIỂM TRA ĐIỀU KIỆN (Giữ nguyên)
-        # --------------------------------------------------------------------------
         _logger.info(">>> [Email AI] Bắt đầu gửi email phân tích cho KH: %s", self.customer_id.name)
 
         if not self.shap_ai_explanation:
             raise UserError(_("Chưa có nội dung phân tích AI. Vui lòng chạy 'Explain with AI' trước."))
-
         if not self.customer_id or not self.customer_id.email:
             raise UserError(_("Khách hàng này không có địa chỉ email hợp lệ."))
 
-        # --------------------------------------------------------------------------
-        # BƯỚC b: XÁC ĐỊNH TEMPLATE (Giữ nguyên logic)
-        # --------------------------------------------------------------------------
         customer_segment = self.customer_id.x_feat_segment
         template_map = {
             0: 'ChurnPredictor.email_template_ai_segment_0',
@@ -527,64 +553,120 @@ class ChurnPrediction(models.Model):
             4: 'ChurnPredictor.email_template_ai_segment_4',
         }
         template_xml_id = template_map.get(customer_segment)
-        
         if not template_xml_id:
             raise UserError(_("Không tìm thấy mẫu email cho segment '%s'.", customer_segment))
-
         try:
             template = self.env.ref(template_xml_id)
         except ValueError:
             raise UserError(_("Template '%s' không tồn tại.", template_xml_id))
             
-        # --------------------------------------------------------------------------
-        # BƯỚC c: RENDER VÀ GỬI EMAIL THỦ CÔNG (ĐÃ SỬA ĐỔI)
-        # --------------------------------------------------------------------------
         try:
-            # 1. Render Subject và Body
-            # Lúc này body sẽ chứa chuỗi "__AI_HTML_CONTENT__" thay vì lỗi code
+            config_param = self.env['ir.config_parameter'].sudo()
+            api_key = config_param.get_param('churn_predictor.openai_api_key')
+            api_endpoint = config_param.get_param('churn_predictor.openai_api_endpoint')
+
+            if not api_key or not api_endpoint or api_key == 'sk-YourSecretKeyHere':
+                raise UserError(_("OpenAI API is not configured. Please set your API key in Technical Settings."))
+
+            internal_analysis_html = self.shap_ai_explanation
+            internal_analysis_text = re.sub('<[^<]+?>', ' ', internal_analysis_html).strip()
+
+            email_prompt = f"""
+            **Vai trò:** Bạn là một chuyên gia Viết nội dung Marketing (Marketing Copywriter), rất giỏi trong việc chuyển hóa dữ liệu phân tích khô khan thành những email cá nhân hóa, ấm áp và có tính thuyết phục cao.
+
+            **Bối cảnh:** Bạn nhận được một bản phân tích nội bộ về một khách hàng. Nhiệm vụ của bạn là dựa vào bản phân tích này để viết nội dung cho một email sẽ được gửi **TRỰC TIẾP** đến khách hàng đó.
+
+            **Dữ liệu phân tích nội bộ (Input):**
+            ---
+            {internal_analysis_text}
+            ---
+
+            **Yêu cầu đầu ra (Output Format):**
+
+            1.  **Mục tiêu:** Viết lại nội dung trên thành một vài đoạn văn ngắn gọn, thân thiện, và tự nhiên để đưa vào thân email.
+            2.  **Ngôi xưng hô:** Nói chuyện trực tiếp với khách hàng. Sử dụng các từ như "Quý khách", "bạn", "của bạn".
+            3.  **GIỌNG VĂN QUAN TRỌNG NHẤT:**
+                -   **Tuyệt đối không** sử dụng các từ ngữ của bản phân tích như "phân khúc", "xác suất churn", "rủi ro", "điểm sáng", "chiến lược hành động", "dữ liệu SHAP".
+                -   Thay vào đó, hãy diễn giải ý nghĩa của chúng. Ví dụ, thay vì nói "Vấn đề: khách hàng chưa đánh giá sản phẩm", hãy viết thành "Chúng tôi nhận thấy bạn chưa có dịp chia sẻ cảm nhận về sản phẩm XYZ. Mỗi ý kiến của bạn đều rất quý giá...".
+                -   Thay vì liệt kê "Chiến lược hành động", hãy biến nó thành một lời mời gọi hấp dẫn. Ví dụ: "Để giúp bạn có trải nghiệm tốt hơn với dòng sản phẩm [tên ngành hàng], chúng tôi xin gửi tặng bạn một ưu đãi đặc biệt...".
+            4.  **Định dạng:** Chỉ cần trả về nội dung text hoặc markdown đơn giản. Không cần các tiêu đề hay icon 🔴🟢🚀.
+            """
+
+            headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": email_prompt}],
+                "temperature": 0.8,
+                "max_tokens": 1024
+            }
+
+            response = requests.post(api_endpoint, headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            response_data = response.json()
+            
+            customer_facing_content_md = ""
+            if 'choices' in response_data and response_data['choices']:
+                customer_facing_content_md = response_data['choices'][0]['message']['content']
+            else:
+                raise UserError(_("AI failed to translate the analysis into an email."))
+            
+            # --------------------------------------------------------------------------
+            # BƯỚC c: [MỚI] THAY THẾ CÁC PLACEHOLDER BẰNG DỮ LIỆU THẬT
+            # --------------------------------------------------------------------------
+            
+            # Lấy thông tin từ System Parameters (cách làm chuyên nghiệp)
+            # Nếu chưa có, nó sẽ dùng giá trị mặc định bạn cung cấp
+            brand_name = config_param.get_param('churn_predictor.brand_name', 'Churn Predictor')
+            sender_name = config_param.get_param('churn_predictor.sender_name', 'Quốc Khang')
+            sender_title = config_param.get_param('churn_predictor.sender_title', 'CEO of Churn Predictor')
+            contact_info = config_param.get_param('churn_predictor.contact_info', '0333925926')
+
+            # Thực hiện thay thế
+            final_md = customer_facing_content_md.replace('[Tên thương hiệu]', brand_name) \
+                                                .replace('[Tên Bạn]', sender_name) \
+                                                .replace('[Tên bạn]', sender_name) \
+                                                .replace('[Chức vụ]', sender_title) \
+                                                .replace('[Thông tin liên hệ]', contact_info)
+
+            # Chuyển kết quả cuối cùng sang HTML
+            customer_facing_html = markdown2.markdown(final_md)
+
+            # --------------------------------------------------------------------------
+            # BƯỚC d: RENDER VÀ GỬI EMAIL
+            # --------------------------------------------------------------------------
+            
             rendered_subject = template._render_template(template.subject, 'churn.prediction', [self.id])[self.id]
             rendered_body = template._render_template(template.body_html, 'churn.prediction', [self.id])[self.id]
 
-            # 2. THAY THẾ PLACEHOLDER BẰNG HTML THẬT
-            # Đây là bước quan trọng để HTML hiển thị đẹp mà không bị lỗi safe_eval
-            if self.shap_ai_explanation:
-                # Đảm bảo nội dung thay thế là chuỗi (string)
-                ai_html = str(self.shap_ai_explanation)
-                rendered_body = rendered_body.replace('__AI_HTML_CONTENT__', ai_html)
+            # Thay thế placeholder chính trong template XML
+            final_body = rendered_body.replace('__AI_HTML_CONTENT__', customer_facing_html)
+            # Thay thế placeholder cuối cùng trong template XML
+            final_body = final_body.replace('[Tên Công ty của bạn]', brand_name)
             
-            # 3. Lấy email người gửi từ Docker
-            sender_email = os.environ.get('SMTP_USER')
-            if not sender_email:
-                sender_email = 'noreply@yourcompany.com'
+            sender_email = os.environ.get('SMTP_USER') or 'noreply@yourcompany.com'
 
-            # 4. Tạo mail.mail
             mail_values = {
                 'subject': rendered_subject,
-                'body_html': rendered_body, 
+                'body_html': final_body, 
                 'email_to': self.customer_id.email,
-                'email_from': f'"{self.env.user.name} (AI System)" <{sender_email}>',
+                'email_from': f'"{sender_name} ({brand_name})" <{sender_email}>',
                 'author_id': self.env.user.partner_id.id,
                 'state': 'outgoing',
                 'auto_delete': True,
             }
 
-            # 5. Gửi
             mail = self.env['mail.mail'].sudo().create(mail_values)
             mail.send(raise_exception=False)
             
-            _logger.info("Đã gửi email AI (Template: %s) tới %s", template_xml_id, self.customer_id.email)
+            _logger.info("Đã gửi email AI (Template: %s, đã qua chuyển đổi) tới %s", template_xml_id, self.customer_id.email)
 
         except Exception as e:
-            _logger.error("Lỗi gửi mail: %s", e)
-            raise UserError(_("Lỗi hệ thống khi gửi mail: %s", e))
+            _logger.error("Lỗi trong quá trình gửi email AI: %s", e)
+            raise UserError(_("An error occurred while preparing or sending the AI email: %s", e))
 
-        # --------------------------------------------------------------------------
-        # BƯỚC d: GHI LOG CHATTER (Giữ nguyên)
-        # --------------------------------------------------------------------------
         self.customer_id.message_post(
-            body=_("Email phân tích AI đã được gửi tới %s.", self.customer_id.email),
+            body=_("Email phân tích (được cá nhân hóa bởi AI) đã được gửi tới %s.", self.customer_id.email),
             subtype_xmlid='mail.mt_note'
         )
 
         return True
-    

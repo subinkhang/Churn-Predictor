@@ -1,83 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- 
+        File này chỉ còn giữ lại các định nghĩa chung như Search View và Pivot View gốc.
+        Các Graph View và Action gây lỗi đã được comment out hoặc chuyển đi.
+    -->
 
-    <!-- 1. Định nghĩa Client Action MỚI -->
-    <record id="action_churn_prediction_spa" model="ir.actions.client">
-        <field name="name">Churn Predictions SPA</field>
-        <field name="tag">churn_prediction_spa_action_tag</field>
-    </record>
-
-    <!-- 2. Định nghĩa Menu Items -->
     <!-- Menu gốc (đảm bảo nó tồn tại) -->
     <menuitem 
         id="menu_churn_root"
         name="Churn Filter Dashboard"
+        web_icon="ChurnPredictor,static/description/icon.png"
         sequence="10"/>
 
-    <!-- Menu con, gọi đến Client Action mới của chúng ta -->
-    <!-- <menuitem 
-        id="menu_churn_prediction_list"
-        name="Predictions"
-        parent="menu_churn_root"
-        action="action_churn_prediction_spa"
-        sequence="1"/> -->
+    <!-- Graph view cũ, đã được thay thế bằng view sạch hơn trong file churn_dashboard_views_1.xml -->
+    <!-- <record id="view_churn_prediction_graph" model="ir.ui.view"> ... </record> -->
 
-    <record id="view_churn_prediction_graph" model="ir.ui.view">
-        <field name="name">churn.prediction.graph</field>
-        <field name="model">churn.prediction</field>
-        <field name="arch" type="xml">
-            <!-- Biểu đồ cột: Đếm số lượng Churn/No-Churn theo tháng -->
-            <graph string="Churn Analysis by Period" type="bar">
-                <field name="prediction_date" interval="week" type="row"/>
-                <field name="prediction_date" interval="month" type="row"/>
-                <field name="prediction_date" interval="year" type="row"/>
-                <field name="prediction_result" type="col"/>
-            </graph>
-        </field>
-    </record>
-
+    <!-- Search View này rất quan trọng và vẫn được sử dụng -->
     <record id="view_churn_prediction_search" model="ir.ui.view">
         <field name="name">churn.prediction.search</field>
         <field name="model">churn.prediction</field>
         <field name="arch" type="xml">
             <search string="Search Churn Predictions">
-                <!-- Thêm một trường tìm kiếm mặc định (theo tên khách hàng) -->
                 <field name="customer_name" string="Customer"/>
-                
                 <separator/>
-
-                <!-- Các tùy chọn Group By -->
                 <group expand="1" string="Group By">
-                    <filter name="group_by_period" string="Prediction Period" context="{'group_by': 'prediction_date:week'}"/>
-                    <filter name="group_by_customer" string="Customer"
-                        context="{'group_by': 'customer_id'}"/>
-                    <filter name="group_by_state" string="Customer State"
-                        context="{'group_by': 'customer_state_id'}"/>
-                    <filter name="group_by_result" string="Prediction Result"
-                        context="{'group_by': 'prediction_result'}"/>
-                    <filter name="group_by_level" string="Probability Level"
-                        context="{'group_by': 'probability_level'}"/>
-                    <!-- Nhóm theo người tạo bản ghi (nhân viên) -->
-                    <filter name="group_by_user" string="User"
-                        context="{'group_by': 'create_uid'}"/>
+                    <filter name="group_by_period_month" string="Prediction Month" context="{'group_by': 'prediction_date:month'}"/>
+                    <separator/>
+                    <filter name="group_by_level" string="Probability Level" context="{'group_by': 'probability_level'}"/>
+                    <filter name="group_by_result" string="Prediction Result" context="{'group_by': 'prediction_result'}"/>
+                    <separator/>
+                    <filter name="group_by_segment" string="Customer Segment" context="{'group_by': 'x_feat_segment'}"/>
+                    <filter name="group_by_state" string="Customer State" context="{'group_by': 'customer_state_id'}"/>
+                    <separator/>
+                    <filter name="group_by_category" string="Last Product Category" context="{'group_by': 'x_feat_product_category_name_english_last'}"/>
+                    <filter name="group_by_product_count" string="Number of Products Purchased" context="{'group_by': 'product_count'}"/>
+                    <filter name="group_by_payment_type" string="Last Payment Type" context="{'group_by': 'x_feat_payment_type_last'}"/>
                 </group>
             </search>
         </field>
     </record>
 
-    <!-- ====================================================== -->
-    <!-- PIVOT VIEW: Bảng tổng hợp dữ liệu                  -->
-    <!-- ====================================================== -->
+    <!-- Pivot View gốc -->
     <record id="view_churn_prediction_pivot" model="ir.ui.view">
         <field name="name">churn.prediction.pivot</field>
         <field name="model">churn.prediction</field>
         <field name="arch" type="xml">
-            <!-- 
-                Bảng phân tích: 
-                - Hàng: Khách hàng
-                - Cột: Kết quả dự đoán
-                - Giá trị: Xác suất trung bình
-            -->
             <pivot string="Churn Probability Analysis">
                 <field name="customer_id" type="row"/>
                 <field name="prediction_result" type="col"/>
@@ -85,17 +52,5 @@
             </pivot>
         </field>
     </record>
-
-    <!-- 
-        Sửa lại Window Action chính để nó bao gồm cả các view mới.
-        Khi người dùng vào menu "Predictions" hoặc bấm Smart Button,
-        họ sẽ có thể chuyển đổi qua lại giữa các view này.
-    -->
-    <!-- <record id="action_churn_prediction" model="ir.actions.act_window">
-        <field name="name">Churn Predictions</field>
-        <field name="res_model">churn.prediction</field>
-        <field name="view_mode">tree,form,graph,pivot</field>
-        <field name="context">{'form_view_ref': 'churn_prediction_spa_action_tag'}</field>
-    </record> -->
 
 </odoo>

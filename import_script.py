@@ -31,7 +31,8 @@ def import_data(env):
     # import_order_lines(env)
     # import_reviews_and_payments(env)
     # import_customer_features(env)
-    import_customer_additional_data(env) 
+    # import_customer_additional_data(env) 
+    import_customer_additional_data_new(env)
     # reset_customer_features(env)
     # relink_customer_ids(env)
     
@@ -635,7 +636,7 @@ def import_customer_additional_data(env):
     File csv ví dụ: customer_segmentation.csv
     Cột key: customer_unique_id -> map với x_unique_id trong Odoo
     """
-    filename = 'order_context_data1.csv' 
+    filename = 'df_sorted_customer_gaps.csv' 
     filepath = os.path.join(DATA_DIR, filename)
     
     _logger.info(f"========================================================")
@@ -779,7 +780,7 @@ def import_customer_additional_data_new(env):
     Cập nhật lại TOÀN BỘ các field segment & gap cho tất cả khách hàng
     dựa trên file CSV mới nhất (order_context_data.csv)
     """
-    filename = 'order_context_data.csv' 
+    filename = 'df_sorted_customer_gaps.csv' 
     filepath = os.path.join(DATA_DIR, filename)
     
     _logger.info(f"========================================================")

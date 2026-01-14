@@ -1,95 +1,86 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- =================================================================== -->
-    <!-- PHÂN TÍCH 1: THEO PHÂN KHÚC KHÁCH HÀNG (SEGMENT)                     -->
-    <!-- =================================================================== -->
+    <!-- 
+        ===================================================================
+        CÁC VIEW DÙNG CHUNG - PHIÊN BẢN DỌN DẸP CUỐI CÙNG
+        ===================================================================
+    -->
 
-    <!-- Định nghĩa Graph View cho Segment -->
-    <record id="view_churn_analysis_by_segment_graph" model="ir.ui.view">
-        <field name="name">churn.analysis.by.segment.graph</field>
+    <!-- 1. GRAPH VIEW "TẤT CẢ TRONG MỘT" - ĐÃ DỌN DẸP SẠCH SẼ -->
+    <record id="view_churn_prediction_analysis_graph" model="ir.ui.view">
+        <field name="name">churn.prediction.analysis.graph</field>
         <field name="model">churn.prediction</field>
         <field name="arch" type="xml">
-            <graph string="Analysis by Customer Segment" type="bar">
-                <!-- Trục X (row) cố định là Segment -->
-                <field name="x_feat_segment" type="row"/>
+            <graph string="Progress Analysis" type="bar">
+                <!-- Trục X được để trống cho người dùng chọn từ "Group By" -->
+
                 <!-- 
-                    Trục Y (measure) có thể được thay đổi.
-                    churn_rate sẽ là measure mặc định.
+                    (ĐÃ SỬA) TRỤC Y (MEASURES) - Chỉ chứa các trường SỐ có thể tính toán.
+                    Các trường phân loại như 'Customer Segment', 'Is High Risk' đã được XÓA.
                 -->
-                <field name="churn_rate" type="measure" operator="avg"/>
-                <field name="probability" type="measure" operator="avg"/>
-                <field name="id" type="measure" operator="count"/>
+                <field name="id" string="Prediction Count" type="measure" operator="count"/>
+                <field name="churn_rate" string="Churn Rate (%)" type="measure" operator="avg"/>
+                <field name="probability" string="Avg Churn Probability (%)" type="measure" operator="avg"/>
+                <field name="x_feat_recency" string="Avg Recency (Days)" type="measure" operator="avg"/>
+                <field name="x_feat_frequency" string="Avg Frequency" type="measure" operator="avg"/>
+                <field name="x_feat_payment_value_sum" string="Avg Total Spent" type="measure" operator="avg"/>
+                <field name="x_feat_category_avg_gap" string="Avg Category Gap (Days)" type="measure" operator="avg"/>
             </graph>
         </field>
     </record>
 
-    <!-- Định nghĩa Pivot View cho Segment -->
-    <record id="view_churn_analysis_by_segment_pivot" model="ir.ui.view">
-        <field name="name">churn.analysis.by.segment.pivot</field>
+    <!-- 2. PIVOT VIEW "TẤT CẢ TRONG MỘT" -->
+    <record id="view_churn_prediction_analysis_pivot" model="ir.ui.view">
+        <field name="name">churn.prediction.analysis.pivot</field>
         <field name="model">churn.prediction</field>
         <field name="arch" type="xml">
-            <pivot string="Analysis by Customer Segment">
-                <field name="x_feat_segment" type="row"/>
-                <field name="churn_rate" type="measure" operator="avg"/>
-                <field name="id" type="measure" operator="count"/>
-            </pivot>
-        </field>
-    </record>
-
-    <!-- Action cho Segment: Odoo sẽ tự động tìm các view ở trên -->
-    <record id="action_churn_analysis_by_segment" model="ir.actions.act_window">
-        <field name="name">Analysis by Customer Segment</field>
-        <field name="res_model">churn.prediction</field>
-        <field name="view_mode">graph,pivot,tree</field>
-    </record>
-
-    <!-- =================================================================== -->
-    <!-- PHÂN TÍCH 2: THEO DANH MỤC SẢN PHẨM (PRODUCT CATEGORY)              -->
-    <!-- =================================================================== -->
-
-    <!-- Định nghĩa Graph View cho Category -->
-    <record id="view_churn_analysis_by_category_graph" model="ir.ui.view">
-        <field name="name">churn.analysis.by.category.graph</field>
-        <field name="model">churn.prediction</field>
-        <field name="arch" type="xml">
-            <graph string="Analysis by Product Category" type="bar">
-                <!-- Trục X (row) cố định là Product Category -->
-                <field name="x_feat_product_category_name_english_last" type="row"/>
-                <!-- 
-                    Trục Y (measure) có thể được thay đổi.
-                    id (count) sẽ là measure mặc định.
-                -->
-                <field name="id" type="measure" operator="count"/>
-                <field name="churn_rate" type="measure" operator="avg"/>
-                <field name="x_feat_category_avg_gap" type="measure" operator="avg"/>
-            </graph>
-        </field>
-    </record>
-
-    <!-- Định nghĩa Pivot View cho Category -->
-    <record id="view_churn_analysis_by_category_pivot" model="ir.ui.view">
-        <field name="name">churn.analysis.by.category.pivot</field>
-        <field name="model">churn.prediction</field>
-        <field name="arch" type="xml">
-            <pivot string="Analysis by Product Category">
-                <field name="x_feat_product_category_name_english_last" type="row"/>
-                <field name="id" type="measure" operator="count"/>
-                <field name="churn_rate" type="measure" operator="avg"/>
-                <field name="x_feat_category_avg_gap"/> <!-- Đã sửa, không cần operator -->
+            <pivot string="Progress Analysis">
+                <field name="id" string="Prediction Count" type="measure" operator="count"/>
+                <field name="churn_rate" string="Churn Rate (%)" type="measure" operator="avg"/>
+                <field name="probability" string="Avg Probability (%)" type="measure" operator="avg"/>
             </pivot>
         </field>
     </record>
     
-    <!-- Action cho Category: Odoo sẽ tự động tìm các view ở trên -->
+    <!-- 
+        ===================================================================
+        CÁC ACTION - SỬA LẠI ĐỂ CHỈ ĐỊNH TƯỜNG MINH CÁC VIEW SẠCH
+        ===================================================================
+    -->
+
+    <!-- Action cho menu "By Customer Segment" -->
+    <record id="action_churn_analysis_by_segment" model="ir.actions.act_window">
+        <field name="name">Analysis by Customer Segment</field>
+        <field name="res_model">churn.prediction</field>
+        <field name="view_mode">graph,pivot,tree</field>
+        <field name="search_view_id" ref="ChurnPredictor.view_churn_prediction_search"/>
+        <field name="context">{'search_default_group_by_segment': 1}</field>
+        <!-- (SỬA LẠI) Ép Odoo chỉ dùng các view sạch này -->
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_churn_prediction_analysis_graph')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_churn_prediction_analysis_pivot')}),
+            (0, 0, {'view_mode': 'tree'})
+        ]"/>
+    </record>
+
+    <!-- Action cho menu "By Product Category" -->
     <record id="action_churn_analysis_by_category" model="ir.actions.act_window">
         <field name="name">Analysis by Product Category</field>
         <field name="res_model">churn.prediction</field>
         <field name="view_mode">graph,pivot,tree</field>
+        <field name="search_view_id" ref="ChurnPredictor.view_churn_prediction_search"/>
+        <field name="context">{'search_default_group_by_category': 1}</field>
+        <!-- (SỬA LẠI) Ép Odoo chỉ dùng các view sạch này -->
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_churn_prediction_analysis_graph')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_churn_prediction_analysis_pivot')}),
+            (0, 0, {'view_mode': 'tree'})
+        ]"/>
     </record>
 
-    <!-- =================================================================== -->
-    <!-- MENU ITEMS (Giữ nguyên)                                            -->
-    <!-- =================================================================== -->
+    <!-- MENU ITEMS -->
     <menuitem id="menu_churn_progress_analysis_root" name="Progress Analysis" parent="menu_churn_root" sequence="3"/>
     <menuitem id="menu_churn_analysis_by_segment" name="By Customer Segment" parent="menu_churn_progress_analysis_root" action="action_churn_analysis_by_segment" sequence="1"/>
     <menuitem id="menu_churn_analysis_by_category" name="By Product Category" parent="menu_churn_progress_analysis_root" action="action_churn_analysis_by_category" sequence="2"/>

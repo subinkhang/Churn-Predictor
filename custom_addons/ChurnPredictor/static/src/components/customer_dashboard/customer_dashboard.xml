@@ -70,6 +70,13 @@
                                         <div class="h3 fw-bold text-dark mb-0 mt-1">
                                             <t t-esc="state.customerData.x_feat_segment"/>
                                         </div>
+                                        <div class="small text-muted mt-1" style="font-size: 0.75rem; font-style: italic;">
+                                            <t t-if="state.customerData.x_feat_segment === 2">Khách hàng ngôi sao</t>
+                                            <t t-if="state.customerData.x_feat_segment === 1">VIP ngủ đông</t>
+                                            <t t-if="state.customerData.x_feat_segment === 0">Khách hàng mới / Tiềm năng</t>
+                                            <t t-if="state.customerData.x_feat_segment === 3">Khách hàng phổ thông</t>
+                                            <t t-if="state.customerData.x_feat_segment === 4">Khách hàng đã mất</t>
+                                        </div>
                                     </div>
                                     
                                     <!-- Cột Personal Gap -->
@@ -99,11 +106,24 @@
                         <div class="card-body d-flex flex-column">
                             <h2 class="h5 mb-3 fw-bold">Customer Interaction Timeline</h2>
                             
-                            <!-- Filters -->
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-3"><select class="form-select form-select-sm"><option>Date range</option></select></div>
-                                <div class="col-md-3"><select class="form-select form-select-sm"><option>Channel</option></select></div>
-                                <div class="col-md-3"><select class="form-select form-select-sm"><option>Event type</option></select></div>
+                            <!-- Filters (Đã nâng cấp) -->
+                            <div class="row g-2 mb-3 align-items-center">
+                                <!-- Filter chọn kiểu xem -->
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm" t-model="state.periodType" t-on-change="onChangePeriodType">
+                                        <option value="last_12_months">Last 12 Months</option>
+                                        <option value="by_year">By Year</option>
+                                    </select>
+                                </div>
+
+                                <!-- Filter chọn năm (chỉ hiện khi xem 'By Year') -->
+                                <div class="col-md-3" t-if="state.periodType === 'by_year'">
+                                    <select class="form-select form-select-sm" t-model="state.selectedYear" t-on-change="onChangeYear">
+                                        <t t-foreach="state.availableYears" t-as="year" t-key="year">
+                                            <option t-att-value="year" t-esc="year"/>
+                                        </t>
+                                    </select>
+                                </div>
                             </div>
 
                             <!-- Chart Area -->

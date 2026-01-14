@@ -1,0 +1,68 @@
+@startuml
+' --- TIÊU ĐỀ VÀ CÀI ĐẶT GIAO DIỆN ---
+title Quy trình giữ chân khách hàng mục tiêu
+
+skinparam style strictuml
+skinparam backgroundColor #FFFFFF
+skinparam activity {
+    BorderColor #555555
+    BackgroundColor #F2F2F2
+    FontName Arial
+    FontSize 12
+}
+skinparam partition {
+    BorderColor #333333
+    BackgroundColor #EFEFEF
+    FontName Arial
+    FontSize 14
+    FontColor #000000
+}
+skinparam arrow {
+    Color #333333
+}
+
+' --- BẮT ĐẦU VẼ QUY TRÌNH ---
+start
+
+' === GIAI ĐOẠN 1: DỰ BÁO TỰ ĐỘNG (DO HỆ THỐNG THỰC HIỆN) ===
+partition "Hệ thống" #LightSkyBlue {
+    :Tác vụ tự động kích hoạt theo cronjob;
+    :Thu thập dữ liệu mới nhất;
+    :Thực thi dự báo hàng loạt;
+    :Cập nhật kết quả vào Odoo;
+    :Gửi email báo cáo tóm tắt;
+}
+
+' === GIAI ĐOẠN 2: GIÁM SÁT VÀ CHẨN ĐOÁN (DO QUẢN LÝ THỰC HIỆN) ===
+partition "Marketing Manager" #LightGreen {
+    :Truy cập Dashboard tổng quan;
+    :Phân tích xu hướng & các chỉ số KPI;
+    if (Phát hiện điểm nóng?) then (Có)
+        :Xem chi tiết khách hàng rủi ro;
+        :Sử dụng 'Explain with AI'
+        để chẩn đoán nguyên nhân;
+        :Xây dựng kịch bản giữ chân
+        phù hợp;
+        
+        ' --- GIAI ĐOẠN 3: RA QUYẾT ĐỊNH VÀ ỦY QUYỀN ---
+        :Nhân viên CSKH xử lý khách hàng;
+    else (Không)
+        :Tiếp tục theo dõi;
+        stop
+    endif
+}
+
+' === GIAI ĐOẠN 4: CAN THIỆP VÀ GHI NHẬN (DO NHÂN VIÊN THỰC HIỆN) ===
+partition "Nhân viên CSKH" #LightYellow {
+    :Nhận nhiệm vụ;
+    :Xem hồ sơ chi tiết &
+    lý do dự báo từ AI;
+    :Thực hiện hành động
+    (Gửi email, gọi điện...);
+    :Ghi nhận kết quả tương
+    tác vào Odoo;
+}
+
+stop
+
+@enduml

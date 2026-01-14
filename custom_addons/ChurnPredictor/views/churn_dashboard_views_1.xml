@@ -1,29 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- 
-        Chúng ta không cần định nghĩa view <dashboard> nữa.
-        Thay vào đó, chúng ta sẽ tạo một Action Window mạnh mẽ.
-    -->
+    <!-- =================================================================== -->
+    <!-- ĐỊNH NGHĨA CÁC VIEW SẠCH SẼ CHO DASHBOARD                          -->
+    <!-- =================================================================== -->
 
-    <!-- 1. Định nghĩa Action Window đa chế độ xem -->
-    <!-- <record id="action_churn_main_dashboard" model="ir.actions.act_window">
-        <field name="name">Churn Dashboard</field>
-        <field name="res_model">churn.prediction</field>
-        <field name="view_mode">graph,pivot,kanban,tree</field>
-        <field name="context">{'form_view_ref': 'churn_prediction_spa_action_tag'}</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No data found. Create some predictions to see your dashboard!
-            </p>
+    <!-- 1. GRAPH VIEW "TẤT CẢ TRONG MỘT" - Chỉ chứa các measure hợp lệ -->
+    <record id="view_churn_dashboard_main_graph" model="ir.ui.view">
+        <field name="name">churn.dashboard.main.graph</field>
+        <field name="model">churn.prediction</field>
+        <field name="arch" type="xml">
+            <graph string="Churn Analysis" type="bar">
+                <!-- Trục Y (Measures) - Đã được dọn dẹp sạch sẽ -->
+                <field name="x_feat_category_avg_gap" string="Avg Category Gap (Days)" type="measure" operator="avg"/>
+                <field name="probability" string="Avg he Churn Probability (%)" type="measure"/>
+                <field name="x_feat_recency" string="Avg Recency (Days)" type="measure" operator="avg"/>
+                <field name="x_feat_payment_value_sum" string="Avg Total Spent" type="measure" operator="avg"/>
+                <field name="id" string="Prediction Count" type="measure" operator="count"/>
+                <field name="churn_rate" string="Churn Rate (%)" type="measure" operator="avg"/>
+                <!-- <field name="x_feat_frequency" string="Avg Frequency" type="measure" operator="avg"/> -->
+            </graph>
         </field>
-    </record> -->
+    </record>
 
-    <!-- 2. Menu Item để gọi Action này (giữ nguyên) -->
+    <!-- 2. PIVOT VIEW SẠCH SẼ -->
+    <record id="view_churn_dashboard_main_pivot" model="ir.ui.view">
+        <field name="name">churn.dashboard.main.pivot</field>
+        <field name="model">churn.prediction</field>
+        <field name="arch" type="xml">
+            <pivot string="Churn Filter Analysis">
+                <field name="id" string="Prediction Count" type="measure" operator="count"/>
+                <field name="churn_rate" string="Churn Rate (%)" type="measure" operator="avg"/>
+            </pivot>
+        </field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- ĐỊNH NGHĨA ACTION BỊ THIẾU VÀ MENU                                 -->
+    <!-- =================================================================== -->
+
+    <!-- 3. ACTION CHÍNH - Giờ đã được định nghĩa rõ ràng -->
+    <record id="action_churn_main_dashboard" model="ir.actions.act_window">
+        <field name="name">Churn Filter Dashboard</field>
+        <field name="res_model">churn.prediction</field>
+        <field name="view_mode">graph,pivot,tree</field>
+        <field name="search_view_id" ref="ChurnPredictor.view_churn_prediction_search"/>
+        <!-- Ép Odoo chỉ dùng các view sạch mà chúng ta vừa định nghĩa ở trên -->
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_churn_dashboard_main_graph')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_churn_dashboard_main_pivot')}),
+            (0, 0, {'view_mode': 'tree'})
+        ]"/>
+    </record>
+
+    <!-- 4. MENU ITEM - Trỏ đến action đã được định nghĩa đầy đủ -->
     <menuitem
         id="menu_churn_dashboard_main"
         name="Dashboard"
         parent="menu_churn_root"
         action="action_churn_main_dashboard"
         sequence="0"/>
-
 </odoo>

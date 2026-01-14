@@ -438,13 +438,16 @@ class ResPartner(models.Model):
         _logger.info(f"Đã tạo {count} activities mới.")
         
     @api.model
-    def get_interaction_timeline_data(self, customer_id):
+    def get_interaction_timeline_data(self, customer_id, period_type=None, year=None):
         """
         Tổng hợp dữ liệu tương tác của khách hàng từ các nguồn dữ liệu thật của Odoo:
         - res.partner: Ngày tạo tài khoản.
         - sale.order: Các đơn hàng đã xác nhận.
         - mail.message: Các ghi chú, email liên quan đến khách hàng.
         """
+        if not period_type:
+            period_type = 'last_12_months'
+        
         partner = self.browse(customer_id)
         all_events = []
         
@@ -505,33 +508,43 @@ class ResPartner(models.Model):
             event['date'] = event['date'].strftime('%Y-%m-%d') # Chuyển thành chuỗi cho hiển thị
             timeline_events_formatted.append(event)
             
-        # --- 2. CHUẨN BỊ DỮ LIỆU CHO BIỂU ĐỒ (6 THÁNG GẦN NHẤT) ---
+        # --- 2. CHUẨN BỊ DỮ LIỆU CHO BIỂU ĐỒ (LOGIC MỚI, LINH HOẠT) ---
+        chart_data = {'labels': [], 'values': []}
         
-        today = fields.Date.today()
-        # Khởi tạo labels và values cho 6 tháng
-        labels = []
-        values = [0] * 6
-        
-        for i in range(5, -1, -1):
-            # Lấy ngày của tháng tương ứng (ví dụ: 6 tháng trước, 5 tháng trước, ...)
-            month_date = today - relativedelta(months=i)
-            labels.append(month_abbr[month_date.month])
+        # --- TRƯỜNG HỢP A: XEM THEO NĂM CỤ THỂ ---
+        if period_type == 'by_year':
+            target_year = year or fields.Date.today().year
+            labels = [month_abbr[i] for i in range(1, 13)] # Jan, Feb, Mar...
+            values = [0.0] * 12
 
-        # Đếm số lượng sự kiện trong mỗi tháng
-        for event in all_events:
-            event_date = event['date_obj']
-            # Kiểm tra xem sự kiện có nằm trong khoảng 6 tháng gần đây không
-            if today - relativedelta(months=6) < event_date.date() <= today:
-                months_ago = (today.year - event_date.year) * 12 + (today.month - event_date.month)
-                if 0 <= months_ago < 6:
-                    # Index trong mảng values (0 = 5 tháng trước, ..., 5 = tháng này)
-                    index = 5 - months_ago
-                    values[index] += 1
-                    
-        chart_data = {
-            'labels': labels,
-            'values': values
-        }
+            for order in sales_orders:
+                order_date = order.date_order
+                if order_date.year == target_year:
+                    # Lấy index của tháng (tháng 1 -> index 0)
+                    month_index = order_date.month - 1
+                    values[month_index] += order.amount_total
+            
+            chart_data = {'labels': labels, 'values': values}
+
+        # --- TRƯỜNG HỢP B: XEM 12 THÁNG GẦN NHẤT (Mặc định) ---
+        else: # period_type == 'last_12_months'
+            today = fields.Date.today()
+            labels = []
+            values = [0.0] * 12
+            
+            for i in range(11, -1, -1):
+                month_date = today - relativedelta(months=i)
+                labels.append(f"{month_date.month}/{str(month_date.year)[2:]}")
+
+            for order in sales_orders:
+                order_date = order.date_order
+                if today - relativedelta(months=12) < order_date.date() <= today:
+                    months_ago = (today.year - order_date.year) * 12 + (today.month - order_date.month)
+                    if 0 <= months_ago < 12:
+                        index = 11 - months_ago
+                        values[index] += order.amount_total
+            
+            chart_data = {'labels': labels, 'values': values}
 
         # --- 3. TẠO CÁC INSIGHTS TỰ ĐỘNG ---
         
@@ -777,6 +790,12 @@ class ResPartner(models.Model):
                     'num_items_sum': customer.x_feat_num_items_sum, 'num_items_mean': customer.x_feat_num_items_mean, 'payment_type_last': customer.x_feat_payment_type_last or '',
                     'customer_state_last': customer.x_feat_customer_state_last or '', 'product_category_name_english_last': customer.x_feat_product_category_name_english_last or '',
                 }
+                
+                customer.write({
+                    'x_feat_payment_value_sum': payment_value_sum,
+                    'x_feat_frequency': frequency,
+                    'x_feat_recency': recency,
+                })
     
             # Ưu tiên 2: Nếu không, tính toán từ đơn hàng thật
             elif customer.sale_order_ids:
@@ -790,6 +809,9 @@ class ResPartner(models.Model):
                 product_count_real = len(orders.mapped('order_line.product_id'))
                 payment_values = orders.mapped('amount_total')
                 payment_value_sum = sum(payment_values)
+                frequency = len(orders)
+                # Thêm điều kiện `if orders` để tránh lỗi nếu không có đơn hàng nào
+                recency = (fields.Datetime.now() - max(orders.mapped('date_order'))).days if orders else 0
                 raw_data = {
                     'payment_value_sum': payment_value_sum, 'payment_value_mean': payment_value_sum / len(payment_values) if payment_values else 0,
                     'payment_value_max': max(payment_values) if payment_values else 0, 'frequency': len(orders), 'recency': (fields.Datetime.now() - max(orders.mapped('date_order'))).days,

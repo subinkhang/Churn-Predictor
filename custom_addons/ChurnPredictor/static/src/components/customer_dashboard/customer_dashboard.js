@@ -18,20 +18,23 @@ export class CustomerDashboard extends Component {
         // this.chartRef = useRef("interactionChart");
         // this.chart = null;
 
+        const currentYear = new Date().getFullYear();
+        const years = Array.from({ length: 15 }, (_, i) => currentYear - i); // Lấy 15 năm gần nhất
+
         this.state = useState({
             customerData: {},
             lifetimeValue: 0,
             latestPrediction: null,
-            interactionData: {
-                timeline: [],
-                insights: []
-            },
-            // Thêm một state mới để chứa object cấu hình cho biểu đồ.
-            // Nó sẽ được truyền vào ChartRenderer như một prop.
+            interactionData: { timeline: [], insights: [] },
             interactionChartConfig: null, 
             selectedEvent: null,
             isGeneratingExplanation: false,
-            isSendingEmail: false, 
+            isSendingEmail: false,
+            
+            // State mới để quản lý filter
+            periodType: 'last_12_months', // Mặc định
+            availableYears: years,
+            selectedYear: currentYear,
         });
 
         onWillStart(async () => {
@@ -39,7 +42,7 @@ export class CustomerDashboard extends Component {
                 this.loadCustomerData(),
                 this.loadSalesData(),
                 this.loadLatestPrediction(),
-                this.loadInteractionData(),
+                this.loadInteractionData(), // Hàm này giờ sẽ dùng state mới
             ]);
         });
         
@@ -97,7 +100,19 @@ export class CustomerDashboard extends Component {
     // === UPDATE 4: Sửa đổi hàm loadInteractionData để chuẩn bị config cho ChartRenderer ===
     async loadInteractionData() {
         if (!this.customerId) return;
-        const data = await this.orm.call("res.partner", "get_interaction_timeline_data", [this.customerId]);
+        const data = await this.orm.call(
+            "res.partner", 
+            "get_interaction_timeline_data", 
+            [ // Mở đầu danh sách các tham số (args)
+                this.customerId,
+                this.state.periodType,
+                this.state.selectedYear
+            ] // Đóng danh sách
+        );
+
+
+        console.log("--- DỮ LIỆU TỪ SERVER CHO BIỂU ĐỒ ---");
+        console.log(JSON.stringify(data.chart_data, null, 2));
 
         // Cập nhật state cho timeline và insights như cũ
         this.state.interactionData = {
@@ -109,17 +124,31 @@ export class CustomerDashboard extends Component {
         this.state.interactionChartConfig = {
             labels: data.chart_data.labels,
             datasets: [{
-                label: 'Interactions',
+                label: 'Monthly Spending', // Đổi tên cho đúng ý nghĩa
                 data: data.chart_data.values,
-                backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
+                // === SỬA CÁC DÒNG SAU ĐỂ THÀNH LINE CHART ===
+                backgroundColor: 'rgba(1, 126, 132, 0.1)', // Màu nền mờ
+                borderColor: 'rgba(1, 126, 132, 1)',     // Màu đường kẻ đậm
+                borderWidth: 2,
+                fill: true, // Tô màu khu vực bên dưới đường kẻ
+                tension: 0.3 // Làm cho đường kẻ mượt hơn
             }]
         };
 
         if (data.timeline && data.timeline.length > 0) {
             this.state.selectedEvent = data.timeline[0];
         }
+    }
+
+    async onChangePeriodType(ev) {
+        this.state.periodType = ev.target.value;
+        // Tải lại dữ liệu biểu đồ
+        await this.loadInteractionData();
+    }
+    async onChangeYear(ev) {
+        this.state.selectedYear = parseInt(ev.target.value);
+        // Tải lại dữ liệu biểu đồ
+        await this.loadInteractionData();
     }
 
     async onCheckDebugLogs() {
